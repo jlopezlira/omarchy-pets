@@ -7,5 +7,17 @@
     "packs": [
       "daily"
     ]
+  },
+  "gauntlet": {
+    "commands": [
+      {
+        "kind": "test",
+        "command": "./scripts-check.sh"
+      },
+      {
+        "kind": "lint",
+        "command": "bash -n install.sh uninstall.sh bin/* screensaver/ttfx"
+      }
+    ]
   }
 }

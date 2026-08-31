@@ -22,7 +22,7 @@ diff gets large".
 | **Needs you** | An agent asks for permission or input (Claude Code hook `Notification`, or a "waiting for your input" notification) | Jumps once, then stands still looking at you |
 | **Weak** | Battery ≤ 15 % and discharging | Lies down |
 | **Tired** | CPU ≥ 85 %, package > 85 °C, memory ≥ 92 % (for 20 s) or thermal throttling | Sweating, slumped — and thinks *who* is responsible ("CPU at 100% — chrome takes 96%") |
-| **Working** | An agent is in a turn (hooks), or any agent transcript was written in the last 8 s (no hooks needed) | Types on a tiny laptop |
+| **Working** | Any agent is in a turn (hooks), or its transcript was written in the last 8 s (no hooks needed) | Types on a tiny laptop |
 | **Ready** | An agent finished and you haven't come back (fades after 10 min) | Holds the result, happy |
 | **Hungry** | Any weekly usage limit ≥ 90 % (from the Omarchy agents widget data) | Sagging, slow |
 | **Asleep** | Session idle > 2 min | Eyes closed, a "z" — every timer stops, zero CPU |
@@ -41,6 +41,29 @@ on screen, then "+N more"). **Left click** a card to run its action, **right
 click** to dismiss it. Each event plays a short sound (normal, critical,
 "needs you", "done") with a cooldown so a hook and its own desktop notification
 never ring twice.
+
+### Any number of agents
+
+Agents are not hardcoded. Each one has its own state (waiting › running › done,
+the strongest wins), and the pet's state is the strongest across all of them.
+Thoughts name everyone: "*Claude & Kimi are working · Codex is done*",
+"*Kimi needs you: Kimi needs your permission to edit*", "*Codex is done ·
+my-app — take a look. Claude is still working.*"
+
+Two sources feed it: the hooks (Claude Code and Codex ship hook systems; any
+other tool can call `omarchy-pets-agent-state <id> running|waiting|done|idle`)
+and the transcript-activity detector, which knows where the common CLIs write
+their sessions (claude, codex, kimi, grok, gemini, opencode) and takes more from
+the settings:
+
+```json
+"agents": {
+  "myagent": { "dir": "~/.myagent/logs", "glob": "*.log" },
+  "grok":    { "dir": "" }
+}
+```
+
+(an entry with the same id overrides the default; an empty `dir` disables it).
 
 ### Thoughts
 
@@ -148,6 +171,7 @@ at install time.
 - `doneTimeoutMin` — how long "Ready" stays before fading back to resting
 - `thoughtSeconds` — how long a timed thought stays on screen
 - `screensaverDim` — darkness of the screensaver overlay (0 = wallpaper as is, 1 = black)
+- `agents` — extra or overridden agent transcript locations for the activity detector (see above)
 
 IPC (for keybindings or scripts):
 

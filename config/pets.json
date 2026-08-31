@@ -11,5 +11,11 @@
     "critical": "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",
     "attention": "/usr/share/sounds/freedesktop/stereo/window-attention.oga",
     "done": "/usr/share/sounds/freedesktop/stereo/complete.oga"
+  },
+  "agents": {
+    "example-agent": {
+      "dir": "~/.example/sessions",
+      "glob": "*.jsonl"
+    }
   }
 }

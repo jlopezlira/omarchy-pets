@@ -184,17 +184,44 @@ Item {
   }
 
   // ================================================================ agents
-  // Hook files: {agent, state: running|waiting|done, session, message, cwd, updatedAt}.
+  // Any number of agents. Two sources, merged per agent id:
+  //   - hook files in agentsDir (omarchy-pets-agent-state): {agent, state:
+  //     running|waiting|done, session, message, cwd, updatedAt}
+  //   - omarchy-pets-activity: ids whose transcripts were written recently
+  //     (registry in settings.agents + defaults; no id is hardcoded here)
+  // Per agent the strongest state wins: waiting > running > done.
   readonly property string agentsDir: home + "/.local/state/omarchy/pets/agents/"
   readonly property string usageDir: home + "/.local/state/omarchy/agents/usage/"
-  property var agents: []
-  property var activeAgents: []          // from transcript activity (no hooks needed)
+  property var agents: []              // raw hook records, newest first
+  property var activeAgents: []        // ids from transcript activity
   property var hungryAgents: []
-  readonly property var agentWaiting: firstAgent("waiting")
-  readonly property var agentRunning: firstAgent("running") || (activeAgents.length ? { agent: activeAgents[0], state: "running", cwd: "" } : null)
-  readonly property var agentDone: firstAgent("done")
-  function firstAgent(state) { for (var i = 0; i < agents.length; i++) if (agents[i].state === state) return agents[i]; return null }
+  readonly property var agentStates: {
+    var m = {}, rank = { waiting: 3, running: 2, done: 1 }
+    agents.forEach(function(a) {
+      var cur = m[a.agent]
+      if (!cur || rank[a.state] > rank[cur.state]) m[a.agent] = a
+    })
+    activeAgents.forEach(function(id) {
+      if (!m[id] || m[id].state === "done") m[id] = { agent: id, state: "running", cwd: "", message: "", session: "", updatedAt: Date.now() / 1000 }
+    })
+    return m
+  }
+  function agentsIn(state) { var out = []; for (var id in agentStates) if (agentStates[id].state === state) out.push(agentStates[id]); return out }
+  readonly property var waitingAgents: agentsIn("waiting")
+  readonly property var runningAgents: agentsIn("running")
+  readonly property var doneAgents: agentsIn("done")
+  readonly property var agentWaiting: waitingAgents.length ? waitingAgents[0] : null
+  function names(list) { return list.map(function(a) { return cap(a.agent) }).join(" & ") }
+  function cap(s) { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1) }
   function shortCwd(a) { var c = a && a.cwd ? String(a.cwd) : ""; return c ? " · " + c.split("/").filter(Boolean).pop() : "" }
+  // One-line summary of every agent, for thoughts and the health bubble.
+  function agentsSummary() {
+    var parts = []
+    if (waitingAgents.length) parts.push(names(waitingAgents) + (waitingAgents.length > 1 ? " need you" : " needs you"))
+    if (runningAgents.length) parts.push(names(runningAgents) + (runningAgents.length > 1 ? " are working" : " is working"))
+    if (doneAgents.length) parts.push(names(doneAgents) + (doneAgents.length > 1 ? " are done" : " is done"))
+    return parts.join(" · ")
+  }
 
   FileView { path: root.agentsDir; watchChanges: true; printErrors: false; onFileChanged: agentsScan.restart() }
   Timer { id: agentsScan; interval: 100; onTriggered: if (!agentsProc.running) agentsProc.running = true; else agentsScan.restart() }
@@ -224,20 +251,28 @@ Item {
   }
   Timer { interval: 3000; running: !root.asleep; repeat: true; triggeredOnStart: true; onTriggered: if (!activityProc.running) activityProc.running = true }
 
-  onAgentWaitingChanged: if (agentWaiting) {
-    waving = true; waveTimer.restart(); play("attention")
-    think(cap(agentWaiting.agent) + " needs you" + (agentWaiting.message ? ": " + agentWaiting.message : "") + shortCwd(agentWaiting), 0)
-  } else if (thoughtSticky) clearThought()
-  property string lastDoneKey: ""
-  onAgentDoneChanged: {
-    var key = agentDone ? agentDone.agent + ":" + agentDone.session + ":" + agentDone.updatedAt : ""
-    if (key && key !== lastDoneKey) {
-      if (!agentWaiting) play("done")
-      think(cap(agentDone.agent) + " is done" + shortCwd(agentDone) + " — take a look.", thoughtMs * 2)
+  // Events: a new waiting agent (sticky thought, sound), a newly done agent (timed thought, sound).
+  property string waitingKey: ""
+  property var doneSeen: ({})
+  onAgentStatesChanged: {
+    var wk = waitingAgents.map(function(a) { return a.agent + ":" + a.session + ":" + a.updatedAt }).join("|")
+    if (wk !== waitingKey) {
+      waitingKey = wk
+      if (waitingAgents.length) {
+        waving = true; waveTimer.restart(); play("attention")
+        var w = waitingAgents[0]
+        think(names(waitingAgents) + (waitingAgents.length > 1 ? " need you" : " needs you") + (w.message ? ": " + w.message : "") + shortCwd(w), 0)
+      } else if (thoughtSticky) clearThought()
     }
-    lastDoneKey = key
+    var seen = JSON.parse(JSON.stringify(doneSeen)), fresh = []
+    doneAgents.forEach(function(a) { var k = a.agent + ":" + a.session + ":" + a.updatedAt; if (!seen[k]) { seen[k] = true; fresh.push(a) } })
+    for (var k in seen) { var still = false; doneAgents.forEach(function(a) { if (a.agent + ":" + a.session + ":" + a.updatedAt === k) still = true }); if (!still) delete seen[k] }
+    doneSeen = seen
+    if (fresh.length && !waitingAgents.length) {
+      play("done")
+      think(names(fresh) + (fresh.length > 1 ? " are done" : " is done") + shortCwd(fresh[0]) + " — take a look." + (runningAgents.length ? " " + names(runningAgents) + (runningAgents.length > 1 ? " are" : " is") + " still working." : ""), thoughtMs * 2)
+    }
   }
-  function cap(s) { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1) }
 
   FileView { path: root.usageDir; watchChanges: true; printErrors: false; onFileChanged: usageScan.restart() }
   Timer { id: usageScan; interval: 500; onTriggered: if (!usageProc.running) usageProc.running = true; else usageScan.restart() }
@@ -318,7 +353,7 @@ Item {
     var s = "CPU " + h.cpuPct + "% (" + h.topCpu.name + " " + h.topCpu.pct + "%) · " + h.tempC + "°C · RAM " + h.memUsedPct + "% (" + h.topMem.name + " " + (h.topMem.mb / 1024).toFixed(1) + " GB)"
     if (h.batteryPct >= 0) s += " · battery " + h.batteryPct + "%" + (h.discharging ? "" : " ⚡")
     if (hungryAgents.length) s += " · " + hungryAgents.map(function(x) { return x.id + " " + Math.round(x.percent * 100) + "% of " + x.label }).join(", ")
-    if (agentRunning) s = cap(agentRunning.agent) + " is working" + shortCwd(agentRunning) + ". " + s
+    var ag = agentsSummary(); if (ag) s = ag + ". " + s
     return s
   }
 
@@ -342,8 +377,8 @@ Item {
   Timer { interval: 250; repeat: true; running: !root.asleep && !root.fullscreenFocused && !root.saverOn; onTriggered: if (!cursorProc.running) cursorProc.running = true }
 
   // ================================================================= state
-  readonly property string petState: agentWaiting ? "needs-you" : weak ? "weak" : tired ? "tired"
-                                   : agentRunning ? "working" : agentDone ? "ready" : hungryAgents.length > 0 ? "hungry"
+  readonly property string petState: waitingAgents.length ? "needs-you" : weak ? "weak" : tired ? "tired"
+                                   : runningAgents.length ? "working" : doneAgents.length ? "ready" : hungryAgents.length > 0 ? "hungry"
                                    : asleep ? "asleep" : "resting"
   readonly property bool fullscreenFocused: ToplevelManager.activeToplevel ? ToplevelManager.activeToplevel.fullscreen : false
 
@@ -690,7 +725,7 @@ Item {
 
   IpcHandler {
     target: "pets"
-    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, shown: root.shown ? root.shown.id : null, loading: root.loading, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
+    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, shown: root.shown ? root.shown.id : null, loading: root.loading, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agentStates, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
     function listPets(): string { return JSON.stringify(root.allPets) }
     function setPet(id: string): string { root.selectPet(id); return id }
     function installPet(id: string): string { root.installPet(id); return id }

@@ -1,10 +1,28 @@
 #!/bin/bash
-# Hook-free agent activity detector for Omarchy Pets. Prints the id of every
-# agent whose session transcript was written in the last N seconds (default 8),
-# one per line. Costs ~10 ms. Used as a fallback so sessions that were started
-# before the hooks were installed still register as "working".
+# Hook-free agent activity detector for Omarchy Pets.
+# Prints the id of every agent whose session transcript was written in the last
+# N seconds (default 8), one per line. ~10 ms.
+#
+# Agents are NOT hardcoded in the pet: this script knows sensible defaults and
+# merges them with `agents` from ~/.config/omarchy/pets.json, e.g.
+#   "agents": { "kimi": { "dir": "~/.kimi-code/sessions", "glob": "*.jsonl" },
+#               "myagent": { "dir": "~/.myagent/logs", "glob": "*.log" } }
+# A user entry overrides the default with the same id; "dir": "" disables one.
 n=${1:-8}
-[ -d "$HOME/.claude/projects" ] && find "$HOME/.claude/projects" -name '*.jsonl' -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo claude
-[ -d "$HOME/.codex/sessions" ]  && find "$HOME/.codex/sessions"  -name '*.jsonl' -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo codex
-[ -d "$HOME/.grok/sessions" ]   && find "$HOME/.grok/sessions"   -name '*.jsonl' -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo grok
+cfg="$HOME/.config/omarchy/pets.json"
+defaults='{
+  "claude":   {"dir": "~/.claude/projects",  "glob": "*.jsonl"},
+  "codex":    {"dir": "~/.codex/sessions",   "glob": "*.jsonl"},
+  "kimi":     {"dir": "~/.kimi-code/sessions","glob": "*.jsonl"},
+  "grok":     {"dir": "~/.grok/sessions",    "glob": "*.jsonl"},
+  "gemini":   {"dir": "~/.gemini/tmp",       "glob": "*.json*"},
+  "opencode": {"dir": "~/.local/share/opencode", "glob": "*.json*"}
+}'
+merged=$(jq -n --argjson d "$defaults" --argjson u "$( [ -r "$cfg" ] && jq -c '.agents // {}' "$cfg" 2>/dev/null || echo '{}')" '$d * $u')
+echo "$merged" | jq -r 'to_entries[] | select(.value.dir != null and .value.dir != "") | "\(.key)\t\(.value.dir)\t\(.value.glob // "*.jsonl")"' |
+while IFS=$'\t' read -r id dir glob; do
+  dir=${dir/#\~/$HOME}
+  [ -d "$dir" ] || continue
+  find "$dir" -name "$glob" -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo "$id"
+done
 exit 0
