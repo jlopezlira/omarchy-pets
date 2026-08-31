@@ -577,7 +577,7 @@ Item {
         width: win.bubbleW
         height: Math.max(38, thoughtText.implicitHeight + 24)
         x: win.clampX(width)
-        y: win.above ? (stack.visible ? stack.y - height - 10 : pet.y - height - 26) : (stack.visible ? stack.y + stack.height + 10 : pet.y + pet.height + 26)
+        y: win.above ? (stack.visible ? stack.y - height - 8 : pet.y - height - 28) : (stack.visible ? stack.y + stack.height + 8 : pet.y + pet.height + 28)
         Text {
           id: thoughtText
           x: win.padL
@@ -588,11 +588,6 @@ Item {
           font.pixelSize: 12; font.family: Style.font.family
           wrapMode: Text.Wrap
         }
-        // Thought trail: two small circles toward the pet.
-        Rectangle { width: 10; height: 10; radius: 5; color: parent.color; border.color: parent.border.color; border.width: 1
-          x: pet.x + pet.width / 2 - parent.x - 5; y: win.above ? parent.height + 4 : -14 }
-        Rectangle { width: 6; height: 6; radius: 3; color: parent.color; border.color: parent.border.color; border.width: 1
-          x: pet.x + pet.width / 2 - parent.x - 3 + (win.above ? 8 : 8); y: win.above ? parent.height + 15 : -22 }
         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.clearThought() }
       }
 
@@ -605,7 +600,7 @@ Item {
         width: win.bubbleW
         spacing: 7
         x: win.clampX(width)
-        y: win.above ? pet.y - height - 12 : pet.y + pet.height + 12
+        y: win.above ? pet.y - height - 28 : pet.y + pet.height + 28
         add: Transition { NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 180 } NumberAnimation { properties: "scale"; from: 0.96; to: 1; duration: 180; easing.type: Easing.OutQuad } }
         move: Transition { NumberAnimation { properties: "y"; duration: 160; easing.type: Easing.OutQuad } }
 
@@ -673,6 +668,36 @@ Item {
           font.pixelSize: 10; font.family: Style.font.family
           MouseArea { id: clearAll; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
             onClicked: { root.inferred = ({}); root.notifCall("dismissAll") } }
+        }
+      }
+
+      // The indicator that makes the stack read as the pet's own thinking: two
+      // shrinking circles from its head to whichever bubble is closest, wherever
+      // the conversation sits.
+      Item {
+        id: trail
+        visible: stack.visible || thoughtBubble.visible
+        readonly property bool crit: root.petState === "needs-you" || root.critical
+        readonly property color line: crit ? Color.urgent : Color.tooltip.border
+        // Edge of the conversation that faces the pet.
+        readonly property real edge: win.above
+          ? (stack.visible ? stack.y + stack.height : thoughtBubble.y + thoughtBubble.height)
+          : (stack.visible ? stack.y : thoughtBubble.y)
+        readonly property real cx: pet.x + pet.width / 2
+        // Drift toward the bubble it belongs to, so the trail reads as a line
+        // from the head to the conversation rather than two loose dots.
+        readonly property real bubbleCx: (stack.visible ? stack.x + stack.width / 2 : thoughtBubble.x + thoughtBubble.width / 2)
+        Rectangle {
+          width: 11; height: 11; radius: 5.5
+          color: Color.tooltip.background; border.color: trail.line; border.width: 1
+          x: trail.cx + (trail.bubbleCx - trail.cx) * 0.30 - width / 2
+          y: win.above ? trail.edge + 3 : trail.edge - 3 - height
+        }
+        Rectangle {
+          width: 6; height: 6; radius: 3
+          color: Color.tooltip.background; border.color: trail.line; border.width: 1
+          x: trail.cx + (trail.bubbleCx - trail.cx) * 0.10 - width / 2
+          y: win.above ? trail.edge + 16 : trail.edge - 16 - height
         }
       }
 
