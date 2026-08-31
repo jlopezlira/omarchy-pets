@@ -4,6 +4,7 @@
 #   ./install.sh                 install everything that needs no root
 #   ./install.sh --screensaver   also install the screensaver hook (asks for sudo once)
 #   ./install.sh --pet <id>      use another built-in Codex pet (default: rocky)
+#   ./install.sh --all-pets      download all eight built-in pets up front (~5 MB), so switching is instant
 #
 # What it does, in order:
 #   1. copies the shell plugin to ~/.config/omarchy/plugins/jlopezlira.pets/
@@ -17,11 +18,12 @@
 #   9. (--screensaver) installs /usr/local/bin/ttfx so the Omarchy screensaver shows the pet
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-pet=rocky; screensaver=0
+pet=rocky; screensaver=0; allpets=0
 while [ $# -gt 0 ]; do
   case $1 in
     --screensaver) screensaver=1 ;;
     --pet) pet=$2; shift ;;
+    --all-pets) allpets=1 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac; shift
 done
@@ -48,6 +50,7 @@ if [ "$pet" = rocky ] && [ -f "$here"/pets/rocky/pet.json ]; then
   cp "$here"/pets/rocky/pet.json ~/.config/omarchy/pets/rocky/pet.json
 fi
 ~/.local/bin/omarchy-pets-fetch "$pet"
+[ $allpets = 1 ] && ~/.local/bin/omarchy-pets-fetch --all
 if [ "$pet" != rocky ]; then
   # remember the chosen pet in the settings file
   jq --arg p "$pet" '.pet = $p' ~/.config/omarchy/pets.json > ~/.config/omarchy/pets.json.tmp && mv ~/.config/omarchy/pets.json.tmp ~/.config/omarchy/pets.json

@@ -58,7 +58,8 @@ the installed ones (validated against what the animations need — a spritesheet
 and the nine Codex Pets rows; anything incomplete is greyed out with the reason)
 and Codex's built-in catalog — Codex, Dewey, Fireball, Rocky, Seedy, Stacky,
 BSOD, Null Signal. One click switches; a pet that is not downloaded yet is
-fetched first (about 600 KB from OpenAI's CDN) and then selected. Community
+fetched first (about 600 KB from OpenAI's CDN, once — after that it is local)
+and then selected. `omarchy-pets-fetch --all` grabs all eight up front. Community
 pets go in with `omarchy-pets-fetch <id> <folder>`. `omarchy-shell pets picker`
 opens the same list from a keybinding.
 
@@ -95,6 +96,7 @@ git clone https://github.com/jlopezlira/omarchy-pets ~/Projects/omarchy-pets
 cd ~/Projects/omarchy-pets
 ./install.sh                 # no root needed
 ./install.sh --screensaver   # additionally hook the screensaver (asks for sudo once)
+./install.sh --all-pets      # download all eight built-in pets now (~5 MB), so switching is instant
 ```
 
 The installer copies the plugin and scripts into your home, downloads the pet's

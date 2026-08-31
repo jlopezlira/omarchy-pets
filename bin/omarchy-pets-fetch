@@ -9,6 +9,10 @@
 # OpenAI's asset and is fetched for personal use only; it is never redistributed
 # with this project.
 set -euo pipefail
+if [ "${1:-}" = "--all" ]; then
+  for p in codex dewey fireball rocky seedy stacky bsod null-signal; do "$0" "$p" || true; done
+  exit 0
+fi
 id=${1:-rocky}; src=${2:-}
 dest="$HOME/.config/omarchy/pets/$id"
 mkdir -p "$dest"
@@ -18,6 +22,7 @@ if [ -n "$src" ]; then
   echo "Installed $id from $src -> $dest"
   exit 0
 fi
+if [ -s "$dest/spritesheet.webp" ] && [ -f "$dest/pet.json" ]; then echo "$id already installed -> $dest"; exit 0; fi
 url="https://persistent.oaistatic.com/codex/pets/v1/${id}-spritesheet-v4.webp"
 tmp=$(mktemp)
 if ! curl -fsSL "$url" -o "$tmp"; then
