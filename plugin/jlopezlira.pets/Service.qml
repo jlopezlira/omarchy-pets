@@ -736,6 +736,15 @@ Item {
   // the input that ends it.
   property bool saverOn: false
   readonly property string wallpaper: home + "/.local/state/omarchy/current/background"
+  // Omarchy's own screensaver wordmark (whatever `omarchy branding screensaver`
+  // wrote); falls back to plain text if the file is gone.
+  property string branding: "OMARCHY"
+  FileView {
+    path: root.home + "/.config/omarchy/branding/screensaver.txt"
+    blockLoading: true; watchChanges: true; printErrors: false
+    onFileChanged: reload()
+    onLoaded: { var t = text().replace(/\s+$/, ""); if (t.trim() !== "") root.branding = t }
+  }
   property int wallpaperGen: 0
   FileView { path: root.wallpaper; watchChanges: true; printErrors: false; onFileChanged: root.wallpaperGen++ }
   Variants {
@@ -775,6 +784,53 @@ Item {
       }
       Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, root.saverDim) }
 
+      // The wordmark etched into the glass: Omarchy's own asset (whatever
+      // `omarchy branding screensaver` wrote), painted as solid blocks in the
+      // theme's foreground at low alpha, so it reads as part of the backdrop
+      // rather than a label on top of it. Blocks are drawn as rectangles rather
+      // than glyphs: ▀ ▄ █ are designed for a terminal cell, and any font's line
+      // spacing leaves gaps between the rows. The pet plays in front of and
+      // among the letters.
+      Canvas {
+        id: brand
+        visible: root.branding !== "" && root.settings.screensaverBrand !== false
+        readonly property var lines: root.branding.split("\n")
+        readonly property int cols: { var m = 0; for (var i = 0; i < lines.length; i++) m = Math.max(m, lines[i].length); return m }
+        readonly property int rowCount: lines.length
+        readonly property real cell: Math.min(saver.width * 0.60 / Math.max(1, cols), saver.height * 0.30 / Math.max(1, rowCount))
+        readonly property color ink: Color.foreground
+        width: cols * cell
+        height: rowCount * cell
+        x: (saver.width - width) / 2
+        y: saver.height * 0.44 - height / 2
+        onCellChanged: requestPaint()
+        onInkChanged: requestPaint()
+        onVisibleChanged: if (visible) requestPaint()
+        Connections { target: root; function onBrandingChanged() { brand.requestPaint() } }
+        onPaint: {
+          var ctx = getContext("2d"); ctx.reset()
+          var c = cell, bleed = 0.6      // hides hairline seams at fractional cell sizes
+          function pass(color, dx, dy) {
+            ctx.fillStyle = color
+            for (var r = 0; r < lines.length; r++) {
+              var line = lines[r]
+              for (var i = 0; i < line.length; i++) {
+                var ch = line[i]
+                if (ch === "\u2588") ctx.fillRect(i * c + dx, r * c + dy, c + bleed, c + bleed)
+                else if (ch === "\u2580") ctx.fillRect(i * c + dx, r * c + dy, c + bleed, c / 2 + bleed)
+                else if (ch === "\u2584") ctx.fillRect(i * c + dx, r * c + c / 2 + dy, c + bleed, c / 2 + bleed)
+              }
+            }
+          }
+          pass(Qt.rgba(0, 0, 0, 0.30), c * 0.14, c * 0.14)                  // etched shadow
+          pass(Qt.rgba(ink.r, ink.g, ink.b, 0.17), 0, 0)                    // theme foreground
+        }
+      }
+      readonly property real brandW: brand.width
+      readonly property real brandH: brand.height
+      readonly property real brandX: brand.x
+      readonly property real brandY: brand.y
+
       readonly property int margin: 24
       Item {
         id: walker
@@ -790,8 +846,17 @@ Item {
                                      : mode === "jump" ? "jumping" : mode === "wave" ? "waving" : "idle"
         readonly property int shownFrame: mode === "nap" ? 1 : frame % root.frames(anim)
         function newTarget() {
-          tx = saver.margin + Math.random() * (saver.width - width - 2 * saver.margin)
-          ty = saver.margin + Math.random() * (saver.height - height - 2 * saver.margin)
+          // Two out of five trips end among the letters, so the pet and the
+          // wordmark read as one scene instead of two layers.
+          if (brand.visible && Math.random() < 0.4) {
+            tx = saver.brandX + Math.random() * Math.max(1, saver.brandW - width)
+            ty = saver.brandY + Math.random() * Math.max(1, saver.brandH - height)
+          } else {
+            tx = saver.margin + Math.random() * (saver.width - width - 2 * saver.margin)
+            ty = saver.margin + Math.random() * (saver.height - height - 2 * saver.margin)
+          }
+          tx = Math.max(saver.margin, Math.min(saver.width - width - saver.margin, tx))
+          ty = Math.max(saver.margin, Math.min(saver.height - height - saver.margin, ty))
           dir = tx >= x ? 1 : -1
           mode = "walk"
         }

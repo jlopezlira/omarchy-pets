@@ -127,9 +127,13 @@ itself while the focused window is fullscreen.
 Free roaming is reserved for the **screensaver**: when Omarchy's screensaver
 starts, the shell shows your current wallpaper behind a heavy "liquid glass"
 blur and a soft tint (rendered by the layer itself, so it works even with
-Hyprland's blur disabled, as Omarchy ships it), and the same pet plays across
-the whole screen — walks to random spots, pauses, jumps, waves, naps — so OLED
-panels never see the same pixels twice.
+Hyprland's blur disabled, as Omarchy ships it). Omarchy's own screensaver
+wordmark — the same `~/.config/omarchy/branding/screensaver.txt` its stock
+screensaver prints, so `omarchy branding screensaver` still decides what it
+says — is etched into that glass in the theme's foreground color, and the pet
+plays across the whole screen in front of and among the letters: walks to
+random spots, pauses, jumps, waves, naps, so OLED panels never see the same
+pixels twice.
 
 ## Requirements
 
@@ -182,6 +186,7 @@ at install time.
   "thoughtSeconds": 8,
   "screensaverDim": 0.35,
   "screensaverBlur": 1.0,
+  "screensaverBrand": true,
   "sound": {
     "notification": "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
     "critical":     "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",
@@ -198,6 +203,7 @@ at install time.
 - `thoughtSeconds` — how long a timed thought stays on screen
 - `screensaverDim` — tint over the blurred wallpaper in screensaver mode (0 = none, 1 = black)
 - `screensaverBlur` — blur strength of the wallpaper in screensaver mode (0 = sharp, 1 = liquid glass)
+- `screensaverBrand` — etch Omarchy's wordmark into the glass (`false` hides it)
 - `agents` — extra or overridden agent transcript locations for the activity detector (see above)
 - `signals` — regexes that turn notification wording into agent states (see above)
 

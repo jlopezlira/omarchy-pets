@@ -22,5 +22,6 @@
     "_comment": "regexes (case-insensitive) that map notification wording to agent states; delete a key to keep the default",
     "ignoreApps": "^(system|git|omarchy|notify-send|battery|network|bluetooth|audio|volume)$"
   },
-  "screensaverBlur": 1.0
+  "screensaverBlur": 1.0,
+  "screensaverBrand": true
 }
