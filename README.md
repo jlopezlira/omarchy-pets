@@ -42,19 +42,38 @@ click** to dismiss it. Each event plays a short sound (normal, critical,
 "needs you", "done") with a cooldown so a hook and its own desktop notification
 never ring twice.
 
-### Any number of agents
+### Any number of agents — understood from what they announce
 
 Agents are not hardcoded. Each one has its own state (waiting › running › done,
-the strongest wins), and the pet's state is the strongest across all of them.
-Thoughts name everyone: "*Claude & Kimi are working · Codex is done*",
-"*Kimi needs you: Kimi needs your permission to edit*", "*Codex is done ·
+the strongest wins), the pet's state is the strongest across all of them, and
+thoughts name everyone: "*Claude & Kimi are working · Codex is done*",
+"*Aider & Kimi need you: Waiting for your approval*", "*Codex is done ·
 my-app — take a look. Claude is still working.*"
 
-Two sources feed it: the hooks (Claude Code and Codex ship hook systems; any
-other tool can call `omarchy-pets-agent-state <id> running|waiting|done|idle`)
-and the transcript-activity detector, which knows where the common CLIs write
-their sessions (claude, codex, kimi, grok, gemini, opencode) and takes more from
-the settings:
+The primary source is the **notification stream itself**: any tool that sends
+a desktop notification — directly, or through the terminal's OSC 9 / OSC 777
+support (Ghostty, Kitty, WezTerm forward those as desktop notifications) — is
+understood with zero configuration. The agent id comes from the app name
+("Claude Code" → claude, "Kimi Code" → kimi, a terminal-forwarded "Kimi: …"
+→ kimi) and the state from the wording ("waiting for your input", "needs your
+permission", "approval" → waiting; "done", "complete", "finished", "ready for
+review" → done). The wording rules are regexes you can override:
+
+```json
+"signals": {
+  "waiting": "waiting for (your )?input|needs? your (permission|approval)|approv",
+  "done":    "\\b(done|complete[d]?|finished|ready for review)\\b",
+  "ignoreApps": "^(system|git|omarchy)$"
+}
+```
+
+A "waiting" inferred from a notification is considered answered when that
+agent shows activity again or when you dismiss the card. On top of that, two
+optional refinements: the hooks (Claude Code and Codex ship hook systems; any
+tool can call `omarchy-pets-agent-state <id> running|waiting|done|idle`), and
+the transcript-activity detector, which knows where the common CLIs write their
+sessions (claude, codex, kimi, grok, gemini, opencode) and takes more from the
+settings:
 
 ```json
 "agents": {
@@ -64,6 +83,11 @@ the settings:
 ```
 
 (an entry with the same id overrides the default; an empty `dir` disables it).
+
+Tip: Codex announces turn completions and approvals as terminal notifications
+when `~/.codex/config.toml` has `[tui] notifications = true` — the installer
+does not touch that file, set it yourself if you want Codex covered without
+hooks.
 
 ### Thoughts
 
@@ -172,6 +196,7 @@ at install time.
 - `thoughtSeconds` — how long a timed thought stays on screen
 - `screensaverDim` — darkness of the screensaver overlay (0 = wallpaper as is, 1 = black)
 - `agents` — extra or overridden agent transcript locations for the activity detector (see above)
+- `signals` — regexes that turn notification wording into agent states (see above)
 
 IPC (for keybindings or scripts):
 

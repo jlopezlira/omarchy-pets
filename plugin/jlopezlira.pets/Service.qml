@@ -190,6 +190,49 @@ Item {
   //   - omarchy-pets-activity: ids whose transcripts were written recently
   //     (registry in settings.agents + defaults; no id is hardcoded here)
   // Per agent the strongest state wins: waiting > running > done.
+  // --- Source 0: what agents announce. Any tool that sends a desktop
+  // notification (directly, or through the terminal's OSC 9/777 support) is
+  // understood without configuration: the agent id comes from the app name,
+  // the state from the wording. Rules are regexes, overridable in settings:
+  //   "signals": { "waiting": "...", "done": "...", "running": "...", "ignoreApps": "..." }
+  readonly property var defaultSignals: ({
+    waiting: "waiting for (your )?(input|response|approval)|needs? your (permission|approval|attention|input)|permission (needed|required)|approv(e|al)|input required|awaiting|asks? you|blocked on you",
+    done:    "\\b(done|complete[d]?|finished|ready for review|turn (is )?complete|finished (the )?task|task complete|succeeded|all set)\\b",
+    running: "\\b(started|working on|running|thinking|in progress)\\b",
+    ignoreApps: "^(system|git|omarchy|notify-send|battery|network|bluetooth|audio|volume)$"
+  })
+  function signalRe(kind) { var s = settings.signals || {}; try { return new RegExp(s[kind] || defaultSignals[kind], "i") } catch (e) { return new RegExp(defaultSignals[kind], "i") } }
+  // "Claude Code" -> claude, "Kimi Code" -> kimi, "Gemini CLI" -> gemini, "Ghostty" -> body's first word if it names a tool
+  function agentIdFrom(note) {
+    var app = String(note.app || "").trim()
+    var terminals = /^(ghostty|alacritty|kitty|foot|wezterm|tmux|terminal)$/i
+    var src = app
+    if (!app || terminals.test(app)) src = String(note.summary || "").split(/[:·—-]/)[0]
+    var id = src.toLowerCase().replace(/\b(code|cli|agent|assistant|desktop|app)\b/g, "").replace(/[^a-z0-9]+/g, " ").trim().split(" ")[0]
+    return id || ""
+  }
+  property var inferred: ({})   // id -> {agent, state, message, cwd, session, updatedAt, source: "notification"}
+  function inferFromNote(n) {
+    if (signalRe("ignoreApps").test(String(n.app || "").trim())) return
+    var id = agentIdFrom(n); if (!id) return
+    var text = String(n.summary || "") + " " + String(n.body || "")
+    var state = signalRe("waiting").test(text) ? "waiting" : signalRe("done").test(text) ? "done" : signalRe("running").test(text) ? "running" : ""
+    if (!state) return
+    var next = JSON.parse(JSON.stringify(inferred))
+    next[id] = { agent: id, state: state, message: String(n.body || n.summary || ""), cwd: "", session: "n" + n.id, updatedAt: (Number(n.timestamp) || Date.now()) / 1000, source: "notification" }
+    inferred = next
+  }
+  // Inferred entries age out like hook files (done after doneTimeout, waiting/running after 6 h),
+  // and a "waiting" is considered answered as soon as that agent shows activity again.
+  Timer { interval: 60000; running: true; repeat: true; onTriggered: root.pruneInferred() }
+  function pruneInferred() {
+    var now = Date.now() / 1000, next = {}, changed = false
+    for (var id in inferred) { var a = inferred[id], age = now - a.updatedAt
+      if ((a.state === "done" && age > doneTimeoutSec) || age > 6 * 3600) { changed = true; continue }
+      next[id] = a }
+    if (changed) inferred = next
+  }
+
   readonly property string agentsDir: home + "/.local/state/omarchy/pets/agents/"
   readonly property string usageDir: home + "/.local/state/omarchy/agents/usage/"
   property var agents: []              // raw hook records, newest first
@@ -201,8 +244,15 @@ Item {
       var cur = m[a.agent]
       if (!cur || rank[a.state] > rank[cur.state]) m[a.agent] = a
     })
+    for (var id in inferred) {
+      var inf = inferred[id], cur = m[id]
+      if (!cur || rank[inf.state] > rank[cur.state]) m[id] = inf
+    }
     activeAgents.forEach(function(id) {
-      if (!m[id] || m[id].state === "done") m[id] = { agent: id, state: "running", cwd: "", message: "", session: "", updatedAt: Date.now() / 1000 }
+      var cur = m[id]
+      // activity means the agent is running again: it answers an inferred "waiting"
+      if (!cur || cur.state === "done" || (cur.state === "waiting" && cur.source === "notification" && Date.now() / 1000 - cur.updatedAt > 5))
+        m[id] = { agent: id, state: "running", cwd: cur ? cur.cwd : "", message: "", session: cur ? cur.session : "", updatedAt: Date.now() / 1000, source: "activity" }
     })
     return m
   }
@@ -295,6 +345,7 @@ Item {
   // One JSON per live toast, moved to history/ by the service on expiry/dismiss.
   readonly property string notifDir: home + "/.local/state/omarchy/notifications/"
   property var notes: []
+  property var seenNotes: ({})
   property string lastNoteKey: ""
   property bool waving: false
   readonly property bool critical: notes.length > 0 && Number(notes[0].urgency) === 2
@@ -310,12 +361,16 @@ Item {
     String(text).split("\x1e").forEach(function(chunk) { chunk = chunk.trim(); if (!chunk) return; try { list.push(JSON.parse(chunk)) } catch (e) {} })
     list.sort(function(a, b) { return (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0) })
     var key = list.length ? String(list[0].id) + ":" + String(list[0].timestamp) : ""
-    if (key && key !== lastNoteKey) { lastNoteKey = key; waving = true; waveTimer.restart(); play(Number(list[0].urgency) === 2 ? "critical" : "notification") }
+    if (key && key !== lastNoteKey) {
+      lastNoteKey = key; waving = true; waveTimer.restart(); play(Number(list[0].urgency) === 2 ? "critical" : "notification")
+      list.forEach(function(n) { if (!seenNotes[n.id]) { seenNotes[n.id] = true; inferFromNote(n) } })
+    }
     if (!key) lastNoteKey = ""
     notes = list
   }
   Timer { id: waveTimer; interval: 2600; onTriggered: root.waving = false }
   Process { id: notifIpc; running: false }
+  function clearInferred(n) { var id = agentIdFrom(n); if (id && inferred[id] && inferred[id].session === "n" + n.id) { var next = JSON.parse(JSON.stringify(inferred)); delete next[id]; inferred = next } }
   function notifCall(fn, arg) { notifIpc.command = arg !== undefined ? ["omarchy-shell", "notifications", fn, arg] : ["omarchy-shell", "notifications", fn]; notifIpc.running = true }
   function invokeNote(n, idx) {
     var argv = n && n.execArgv ? parseArgv(n.execArgv) : null
@@ -573,7 +628,7 @@ Item {
               anchors.fill: parent
               acceptedButtons: Qt.LeftButton | Qt.RightButton
               cursorShape: Qt.PointingHandCursor
-              onClicked: function(m) { if (m.button === Qt.RightButton) root.notifCall("dismiss", card.modelData.summary); else root.invokeNote(card.modelData, card.index) }
+              onClicked: function(m) { root.clearInferred(card.modelData); if (m.button === Qt.RightButton) root.notifCall("dismiss", card.modelData.summary); else root.invokeNote(card.modelData, card.index) }
             }
           }
         }
@@ -725,7 +780,7 @@ Item {
 
   IpcHandler {
     target: "pets"
-    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, shown: root.shown ? root.shown.id : null, loading: root.loading, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agentStates, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
+    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, shown: root.shown ? root.shown.id : null, loading: root.loading, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agentStates, inferred: root.inferred, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
     function listPets(): string { return JSON.stringify(root.allPets) }
     function setPet(id: string): string { root.selectPet(id); return id }
     function installPet(id: string): string { root.installPet(id); return id }
