@@ -106,15 +106,27 @@ Item {
     for (var j = 0; j < pets.length; j++) if (pets[j].valid) return pets[j]
     return null
   }
-  readonly property string sheet: pet ? "file://" + pet.sheet : ""
-  readonly property int cellW: pet ? pet.cellW : 192
-  readonly property int cellH: pet ? pet.cellH : 208
+  // Double buffer: `pet` is the target, `shown` is the pet whose spritesheet is
+  // fully decoded. Everything renders from `shown`, so switching never paints a
+  // half-loaded or mis-clipped frame; a loading pulse covers the gap.
+  property var shown: null
+  readonly property bool loading: pet !== null && (shown === null || shown.id !== pet.id || shown.sheet !== pet.sheet)
+  Image {
+    id: preload
+    visible: false
+    source: root.pet ? "file://" + root.pet.sheet : ""
+    asynchronous: true; cache: true
+    onStatusChanged: if (status === Image.Ready && root.pet && source == "file://" + root.pet.sheet) root.shown = root.pet
+  }
+  readonly property string sheet: shown ? "file://" + shown.sheet : ""
+  readonly property int cellW: shown ? shown.cellW : 192
+  readonly property int cellH: shown ? shown.cellH : 208
   readonly property var rowIndex: {
-    var m = {}; var rows = pet ? pet.rows : []
+    var m = {}; var rows = shown ? shown.rows : []
     for (var i = 0; i < rows.length; i++) m[rows[i]] = i
     return m
   }
-  function frames(anim) { var f = pet && pet.frames ? pet.frames[anim] : undefined; return f ? Number(f) : 8 }
+  function frames(anim) { var f = shown && shown.frames ? shown.frames[anim] : undefined; return f ? Number(f) : 8 }
   function row(anim) { var r = rowIndex[anim]; return r === undefined ? 0 : r }
   FileView { path: root.home + "/.config/omarchy/pets/"; watchChanges: true; printErrors: false; onFileChanged: petsScan.restart() }
   Timer { id: petsScan; interval: 300; onTriggered: if (!petsProc.running) petsProc.running = true }
@@ -131,6 +143,7 @@ Item {
     if (pendingSelect !== "") { var id = pendingSelect; pendingSelect = ""; for (var i = 0; i < list.length; i++) if (list[i].id === id && list[i].valid) selectPet(id) }
   }
   function selectPet(id) { saveSettings({ pet: id }); think("Now I'm " + (nickname(id) || id) + ".", thoughtMs) }
+  onShownChanged: if (shown && thought.indexOf("Now I'm") === 0) thoughtTimer.restart()
 
   // ================================================================ health
   property var health: ({})
@@ -354,7 +367,7 @@ Item {
       id: win
       required property var modelData
       screen: modelData
-      visible: !root.fullscreenFocused && !root.saverOn && root.pet !== null
+      visible: !root.fullscreenFocused && !root.saverOn && root.shown !== null
       WlrLayershell.namespace: "omarchy-pets"
       WlrLayershell.layer: WlrLayer.Top
       WlrLayershell.keyboardFocus: picker.open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
@@ -403,6 +416,19 @@ Item {
           sourceClipRect: Qt.rect(pet.shownFrame * root.cellW, root.row(pet.anim) * root.cellH, root.cellW, root.cellH)
           fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true; asynchronous: true
           transform: Scale { origin.x: pet.width / 2; xScale: pet.mirrored ? -1 : 1 }
+        }
+        // Loading pulse while a new pet's sheet is being decoded.
+        Rectangle {
+          anchors.fill: parent; radius: 10
+          color: Color.tooltip.background
+          opacity: root.loading ? 0.75 : 0
+          Behavior on opacity { NumberAnimation { duration: 150 } }
+          Text {
+            anchors.centerIn: parent
+            text: "•••"; color: Color.accent; font.pixelSize: 18; font.bold: true
+            SequentialAnimation on opacity { running: root.loading; loops: Animation.Infinite
+              NumberAnimation { to: 0.2; duration: 350 } NumberAnimation { to: 1; duration: 350 } }
+          }
         }
         Text {
           visible: root.petState === "asleep"
@@ -609,7 +635,7 @@ Item {
       id: saver
       required property var modelData
       screen: modelData
-      visible: root.saverOn && root.pet !== null
+      visible: root.saverOn && root.shown !== null
       WlrLayershell.namespace: "omarchy-pets-screensaver"
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -652,7 +678,7 @@ Item {
 
   IpcHandler {
     target: "pets"
-    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
+    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, shown: root.shown ? root.shown.id : null, loading: root.loading, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
     function listPets(): string { return JSON.stringify(root.allPets) }
     function setPet(id: string): string { root.selectPet(id); return id }
     function installPet(id: string): string { root.installPet(id); return id }
