@@ -125,10 +125,11 @@ survives reboots. Everything outside the sprite is click-through. It hides
 itself while the focused window is fullscreen.
 
 Free roaming is reserved for the **screensaver**: when Omarchy's screensaver
-starts, the shell dims and blurs the desktop (a Hyprland layer rule; the
-wallpaper stays softly visible instead of a black screen) and the same pet
-strolls, pauses and naps across the whole screen, changing height after each
-nap so OLED panels never see the same pixels twice.
+starts, the shell shows your current wallpaper behind a heavy "liquid glass"
+blur and a soft tint (rendered by the layer itself, so it works even with
+Hyprland's blur disabled, as Omarchy ships it), and the same pet plays across
+the whole screen — walks to random spots, pauses, jumps, waves, naps — so OLED
+panels never see the same pixels twice.
 
 ## Requirements
 
@@ -179,7 +180,8 @@ at install time.
   "scale": 0.5,
   "doneTimeoutMin": 10,
   "thoughtSeconds": 8,
-  "screensaverDim": 0.55,
+  "screensaverDim": 0.35,
+  "screensaverBlur": 1.0,
   "sound": {
     "notification": "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
     "critical":     "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",
@@ -194,7 +196,8 @@ at install time.
 - `scale` — sprite scale on the desktop (`0.5` = 96×104 px, crisp at display scale 1)
 - `doneTimeoutMin` — how long "Ready" stays before fading back to resting
 - `thoughtSeconds` — how long a timed thought stays on screen
-- `screensaverDim` — darkness of the screensaver overlay (0 = wallpaper as is, 1 = black)
+- `screensaverDim` — tint over the blurred wallpaper in screensaver mode (0 = none, 1 = black)
+- `screensaverBlur` — blur strength of the wallpaper in screensaver mode (0 = sharp, 1 = liquid glass)
 - `agents` — extra or overridden agent transcript locations for the activity detector (see above)
 - `signals` — regexes that turn notification wording into agent states (see above)
 

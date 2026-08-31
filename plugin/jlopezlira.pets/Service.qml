@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import QtQuick.Effects
 import qs.Commons
 
 // Omarchy Pets — a Codex-Pets-format desktop companion for the Omarchy shell.
@@ -61,7 +62,8 @@ Item {
   readonly property real drawScale: settings.scale !== undefined ? Number(settings.scale) : 0.5
   readonly property int doneTimeoutSec: (settings.doneTimeoutMin !== undefined ? Number(settings.doneTimeoutMin) : 10) * 60
   readonly property int thoughtMs: (settings.thoughtSeconds !== undefined ? Number(settings.thoughtSeconds) : 8) * 1000
-  readonly property real saverDim: settings.screensaverDim !== undefined ? Number(settings.screensaverDim) : 0.55
+  readonly property real saverDim: settings.screensaverDim !== undefined ? Number(settings.screensaverDim) : 0.35
+  readonly property real saverBlur: settings.screensaverBlur !== undefined ? Number(settings.screensaverBlur) : 1.0
 
   // ================================================================== pets
   // Installed pets, validated by omarchy-pets-list (needs the nine rows + sheet),
@@ -727,8 +729,15 @@ Item {
   }
 
   // =========================================================== screensaver
-  // Dimmed, blurred (Hyprland layer rule) overlay where the pet roams freely.
+  // Liquid-glass overlay: the current wallpaper, heavily blurred by the layer
+  // itself (Hyprland's layer blur is off in Omarchy), a soft tint, and the pet
+  // playing across the whole screen: walks to random spots, then pauses,
+  // jumps, waves or naps. Fully click-through so the screensaver terminal keeps
+  // the input that ends it.
   property bool saverOn: false
+  readonly property string wallpaper: home + "/.local/state/omarchy/current/background"
+  property int wallpaperGen: 0
+  FileView { path: root.wallpaper; watchChanges: true; printErrors: false; onFileChanged: root.wallpaperGen++ }
   Variants {
     model: Quickshell.screens
     PanelWindow {
@@ -740,20 +749,60 @@ Item {
       WlrLayershell.layer: WlrLayer.Overlay
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
-      color: Qt.rgba(0, 0, 0, root.saverDim)
+      color: "black"
       anchors { top: true; bottom: true; left: true; right: true }
       mask: Region {}
-      readonly property int floorY: height - root.cellH - Math.round(height * 0.06)
+
+      Image {
+        id: wall
+        anchors.fill: parent
+        source: saver.visible ? "file://" + root.wallpaper + "?" + root.wallpaperGen : ""
+        fillMode: Image.PreserveAspectCrop
+        sourceSize.width: 1600           // blur input downscaled: cheap and even softer
+        asynchronous: true; cache: false
+        visible: false
+      }
+      MultiEffect {
+        anchors.fill: parent
+        source: wall
+        blurEnabled: true
+        blur: root.saverBlur
+        blurMax: 64
+        blurMultiplier: 1.5
+        saturation: 0.15
+        brightness: -0.05
+        visible: wall.status === Image.Ready
+      }
+      Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, root.saverDim) }
+
+      readonly property int margin: 24
       Item {
         id: walker
         width: root.cellW; height: root.cellH
-        x: Math.round(saver.width * 0.3); y: saver.floorY
+        x: Math.round(saver.width * 0.3); y: Math.round(saver.height * 0.6)
         property int dir: 1
-        property string mode: "walk"
-        property int ticks: 60
+        property string mode: "walk"     // walk | pause | jump | wave | nap
+        property int ticks: 0
         property int frame: 0
-        readonly property string anim: mode === "walk" ? (dir > 0 ? "running-right" : "running-left") : "idle"
+        property real tx: x
+        property real ty: y
+        readonly property string anim: mode === "walk" ? (dir > 0 ? "running-right" : "running-left")
+                                     : mode === "jump" ? "jumping" : mode === "wave" ? "waving" : "idle"
         readonly property int shownFrame: mode === "nap" ? 1 : frame % root.frames(anim)
+        function newTarget() {
+          tx = saver.margin + Math.random() * (saver.width - width - 2 * saver.margin)
+          ty = saver.margin + Math.random() * (saver.height - height - 2 * saver.margin)
+          dir = tx >= x ? 1 : -1
+          mode = "walk"
+        }
+        function act() {
+          var r = Math.random()
+          if (r < 0.35)      { mode = "pause"; ticks = 8 + Math.floor(Math.random() * 24) }
+          else if (r < 0.60) { mode = "jump";  ticks = root.frames("jumping") * 2 }
+          else if (r < 0.78) { mode = "wave";  ticks = root.frames("waving") * 2 }
+          else               { mode = "nap";   ticks = 120 + Math.floor(Math.random() * 200) }   // 15-40 s
+          frame = 0
+        }
         Item { anchors.fill: parent; clip: true
           Image { source: saver.visible ? root.sheet : ""; width: (root.shown ? root.shown.columns : 8) * walker.width; height: (root.shown ? root.shown.rows.length : 9) * walker.height
             x: -walker.shownFrame * walker.width; y: -root.row(walker.anim) * walker.height; fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true; asynchronous: false } }
@@ -763,16 +812,18 @@ Item {
       Timer {
         interval: 125; repeat: true; running: saver.visible
         onTriggered: {
-          walker.frame++; walker.ticks--
-          if (walker.ticks <= 0) {
-            var r = Math.random()
-            if (walker.mode === "walk") { if (r < 0.25) { walker.mode = "nap"; walker.ticks = 160 + Math.floor(Math.random() * 240) } else { walker.mode = "pause"; walker.ticks = 16 + Math.floor(Math.random() * 40) } }
-            else { walker.mode = "walk"; walker.ticks = 60 + Math.floor(Math.random() * 200); if (r < 0.5) walker.dir = -walker.dir; walker.y = saver.floorY - Math.round(Math.random() * saver.height * 0.5) }
-            walker.frame = 0
+          walker.frame++
+          if (walker.mode === "walk") {
+            var dx = walker.tx - walker.x, dy = walker.ty - walker.y, d = Math.sqrt(dx * dx + dy * dy)
+            if (d < 6) { walker.x = walker.tx; walker.y = walker.ty; walker.act() }
+            else { var sp = 6; walker.x += dx / d * sp; walker.y += dy / d * sp; walker.dir = dx >= 0 ? 1 : -1 }
+          } else {
+            walker.ticks--
+            if (walker.ticks <= 0) walker.newTarget()
           }
-          if (walker.mode === "walk") { var nx = walker.x + walker.dir * 6; if (nx < 10) { nx = 10; walker.dir = 1 } else if (nx > saver.width - walker.width - 10) { nx = saver.width - walker.width - 10; walker.dir = -1 }; walker.x = nx }
         }
       }
+      onVisibleChanged: if (visible) { walker.x = Math.round(saver.width * 0.3); walker.y = Math.round(saver.height * 0.6); walker.newTarget() }
     }
   }
 

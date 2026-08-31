@@ -5,7 +5,7 @@
   "scale": 0.5,
   "doneTimeoutMin": 10,
   "thoughtSeconds": 8,
-  "screensaverDim": 0.55,
+  "screensaverDim": 0.35,
   "sound": {
     "notification": "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
     "critical": "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",
@@ -21,5 +21,6 @@
   "signals": {
     "_comment": "regexes (case-insensitive) that map notification wording to agent states; delete a key to keep the default",
     "ignoreApps": "^(system|git|omarchy|notify-send|battery|network|bluetooth|audio|volume)$"
-  }
+  },
+  "screensaverBlur": 1.0
 }

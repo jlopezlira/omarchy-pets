@@ -1,7 +1,7 @@
 -- Omarchy Pets: screensaver mode.
--- The pet's screensaver layer is a translucent dim over the desktop; blur it so
--- the wallpaper shows through softly instead of a flat black screen.
-hl.layer_rule({ match = { namespace = "omarchy-pets-screensaver" }, blur = true, ignore_alpha = 0.1, no_anim = true, animation = "none" })
+-- The screensaver layer paints the blurred wallpaper itself (Hyprland's blur is
+-- off in Omarchy); it only needs to appear without a layer animation.
+hl.layer_rule({ match = { namespace = "omarchy-pets-screensaver" }, no_anim = true, animation = "none" })
 -- No animation on the pet layer either (it is always mapped).
 hl.layer_rule({ match = { namespace = "omarchy-pets" }, no_anim = true, animation = "none" })
 -- Omarchy's screensaver runs in a fullscreen black terminal underneath the pet
