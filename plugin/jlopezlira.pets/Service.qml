@@ -410,23 +410,33 @@ Item {
                                         : root.petState === "hungry" ? (frame % 16 < 8 ? 0 : 1)
                                         : (anim === "running-right" || anim === "running-left") && root.petState === "resting" ? 0
                                         : frame % root.frames(anim)
-        Image {
+        // The whole sheet, scaled, inside a clipping box offset to the current
+        // frame. One decode per sheet; changing frame or pet never reloads the
+        // file (sourceClipRect would, and paints a blank frame meanwhile).
+        Item {
           anchors.fill: parent
-          source: root.sheet
-          sourceClipRect: Qt.rect(pet.shownFrame * root.cellW, root.row(pet.anim) * root.cellH, root.cellW, root.cellH)
-          fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true; asynchronous: true
+          clip: true
           transform: Scale { origin.x: pet.width / 2; xScale: pet.mirrored ? -1 : 1 }
+          Image {
+            id: sheetImg
+            source: root.sheet
+            width: (root.shown ? root.shown.columns : 8) * pet.width
+            height: (root.shown ? root.shown.rows.length : 9) * pet.height
+            x: -pet.shownFrame * pet.width
+            y: -root.row(pet.anim) * pet.height
+            fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true; asynchronous: false
+          }
         }
         // Loading pulse while a new pet's sheet is being decoded.
         Rectangle {
           anchors.fill: parent; radius: 10
           color: Color.tooltip.background
-          opacity: root.loading ? 0.75 : 0
+          opacity: root.loading || sheetImg.status !== Image.Ready ? 0.75 : 0
           Behavior on opacity { NumberAnimation { duration: 150 } }
           Text {
             anchors.centerIn: parent
             text: "•••"; color: Color.accent; font.pixelSize: 18; font.bold: true
-            SequentialAnimation on opacity { running: root.loading; loops: Animation.Infinite
+            SequentialAnimation on opacity { running: root.loading || sheetImg.status !== Image.Ready; loops: Animation.Infinite
               NumberAnimation { to: 0.2; duration: 350 } NumberAnimation { to: 1; duration: 350 } }
           }
         }
@@ -654,7 +664,9 @@ Item {
         property int frame: 0
         readonly property string anim: mode === "walk" ? (dir > 0 ? "running-right" : "running-left") : "idle"
         readonly property int shownFrame: mode === "nap" ? 1 : frame % root.frames(anim)
-        Image { anchors.fill: parent; source: saver.visible ? root.sheet : ""; sourceClipRect: Qt.rect(walker.shownFrame * root.cellW, root.row(walker.anim) * root.cellH, root.cellW, root.cellH); fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true }
+        Item { anchors.fill: parent; clip: true
+          Image { source: saver.visible ? root.sheet : ""; width: (root.shown ? root.shown.columns : 8) * walker.width; height: (root.shown ? root.shown.rows.length : 9) * walker.height
+            x: -walker.shownFrame * walker.width; y: -root.row(walker.anim) * walker.height; fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true; asynchronous: false } }
         Text { visible: walker.mode === "nap"; text: "z"; color: Color.foreground; font.pixelSize: 30; font.bold: true
           anchors.left: parent.right; anchors.leftMargin: -28; anchors.bottom: parent.top; anchors.bottomMargin: -44; opacity: (walker.frame % 16) < 8 ? 1 : 0.35 }
       }
