@@ -586,7 +586,7 @@ Item {
           x: pet.x + pet.width / 2 - parent.x - 5; y: win.above ? parent.height + 4 : -14 }
         Rectangle { width: 6; height: 6; radius: 3; color: parent.color; border.color: parent.border.color; border.width: 1
           x: pet.x + pet.width / 2 - parent.x - 3 + (win.above ? 8 : 8); y: win.above ? parent.height + 15 : -22 }
-        MouseArea { anchors.fill: parent; onClicked: if (!root.thoughtSticky) root.clearThought() }
+        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.clearThought() }
       }
 
       // ------------------------------------------------ notification stack
@@ -617,7 +617,7 @@ Item {
             border.width: 1
             Column {
               id: cardCol
-              x: 12; y: 8; width: parent.width - 24; spacing: 1
+              x: 12; y: 8; width: parent.width - 40; spacing: 1
               Row {
                 spacing: 6; width: parent.width
                 Text { text: modelData.glyph || ""; color: card.crit ? Color.urgent : Color.accent; font.pixelSize: 12; font.family: Style.font.family; visible: text !== "" }
@@ -632,12 +632,39 @@ Item {
               cursorShape: Qt.PointingHandCursor
               onClicked: function(m) { root.clearInferred(card.modelData); if (m.button === Qt.RightButton) root.notifCall("dismiss", card.modelData.summary); else root.invokeNote(card.modelData, card.index) }
             }
+            // Close. Declared after the card's MouseArea so it takes the press.
+            Rectangle {
+              id: closeBtn
+              width: 20; height: 20; radius: 10
+              anchors.right: parent.right; anchors.rightMargin: 6
+              anchors.top: parent.top; anchors.topMargin: 6
+              readonly property color tone: card.crit ? Color.urgent : Color.accent
+              color: closeMouse.containsMouse ? tone : Qt.rgba(tone.r, tone.g, tone.b, 0.14)
+              border.color: closeMouse.containsMouse ? tone : Qt.rgba(tone.r, tone.g, tone.b, 0.35)
+              border.width: 1
+              Text {
+                anchors.centerIn: parent
+                text: "\u2715"
+                color: closeMouse.containsMouse ? Color.tooltip.background : Color.tooltip.text
+                font.pixelSize: 11; font.bold: true; font.family: Style.font.family
+              }
+              MouseArea {
+                id: closeMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { root.clearInferred(card.modelData); root.notifCall("dismiss", card.modelData.summary) }
+              }
+            }
           }
         }
         Text {
           visible: root.notes.length > 5
-          text: "+" + (root.notes.length - 5) + " more"
-          color: Color.muted; font.pixelSize: 10; font.family: Style.font.family
+          text: "+" + (root.notes.length - 5) + " more · clear all"
+          color: clearAll.containsMouse ? Color.accent : Color.muted
+          font.pixelSize: 10; font.family: Style.font.family
+          MouseArea { id: clearAll; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: { root.inferred = ({}); root.notifCall("dismissAll") } }
         }
       }
 

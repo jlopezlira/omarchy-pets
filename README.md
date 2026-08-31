@@ -37,8 +37,8 @@ Do Not Disturb, actions), but its top-right toast stack is hidden. The pet
 watches the service's per-toast state files and shows **every live
 notification** as a compact card in the current theme's tooltip colors, newest
 on top, animated in and out, with a red border for critical urgency (up to five
-on screen, then "+N more"). **Left click** a card to run its action, **right
-click** to dismiss it. Each event plays a short sound (normal, critical,
+on screen, then "+N more · clear all"). Every card carries a **✕** to close it;
+**left click** the card runs its action, **right click** also dismisses. Each event plays a short sound (normal, critical,
 "needs you", "done") with a cooldown so a hook and its own desktop notification
 never ring twice.
 
