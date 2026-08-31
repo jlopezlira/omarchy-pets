@@ -1,0 +1,11 @@
+{
+  "projectId": "6e1a3769-085a-5076-947b-fc1ab09bcf02",
+  "dataPath": "~/.prjct-cli/projects/6e1a3769-085a-5076-947b-fc1ab09bcf02",
+  "showMetrics": true,
+  "persona": {
+    "role": "DEV",
+    "packs": [
+      "daily"
+    ]
+  }
+}
