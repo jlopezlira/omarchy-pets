@@ -20,7 +20,7 @@ echo "hyprland rules"
 rm -f ~/.config/hypr/omarchy-pets.lua
 sed -i '/-- Omarchy Pets (screensaver blur/d; /require("hypr.omarchy-pets")/d' ~/.config/hypr/hyprland.lua 2>/dev/null || true
 hyprctl reload >/dev/null 2>&1 || true
-if [ -f /usr/local/bin/ttfx ] && grep -q 'pet screensaverOn' /usr/local/bin/ttfx; then
+if [ -f /usr/local/bin/ttfx ] && grep -qE 'pets? screensaverOn' /usr/local/bin/ttfx; then
   echo "screensaver hook (sudo)"
   sudo rm -f /usr/local/bin/ttfx
 fi
