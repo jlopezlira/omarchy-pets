@@ -554,6 +554,12 @@ Item {
         }
       }
 
+      // Everything the pet says is a message bubble in one conversation: same
+      // width for every bubble whatever it wraps to, fully rounded ends.
+      readonly property int bubbleW: 340
+      readonly property int padL: 24          // clears the rounded end at any height
+      readonly property int padR: 46          // room for the close button
+
       // Anchor above the pet (or below when there is no room), clamped to the screen.
       readonly property bool above: pet.y > win.height * 0.35
       function clampX(w) { return Math.max(6, Math.min(win.width - w - 6, pet.x + pet.width / 2 - w / 2)) }
@@ -564,18 +570,19 @@ Item {
         visible: opacity > 0
         opacity: root.thought !== "" ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 180 } }
-        radius: 8
+        radius: height / 2
         color: Color.tooltip.background
         border.color: root.petState === "needs-you" ? Color.urgent : Color.tooltip.border
         border.width: 1
-        width: Math.min(360, thoughtText.implicitWidth + 30)
-        height: thoughtText.implicitHeight + 22
+        width: win.bubbleW
+        height: Math.max(38, thoughtText.implicitHeight + 24)
         x: win.clampX(width)
         y: win.above ? (stack.visible ? stack.y - height - 10 : pet.y - height - 26) : (stack.visible ? stack.y + stack.height + 10 : pet.y + pet.height + 26)
         Text {
           id: thoughtText
-          anchors.centerIn: parent
-          width: Math.min(330, implicitWidth)
+          x: win.padL
+          y: (parent.height - implicitHeight) / 2
+          width: win.bubbleW - win.padL - win.padL
           text: root.thought
           color: Color.tooltip.text
           font.pixelSize: 12; font.family: Style.font.family
@@ -595,8 +602,8 @@ Item {
       Column {
         id: stack
         visible: root.notes.length > 0
-        width: 320
-        spacing: 6
+        width: win.bubbleW
+        spacing: 7
         x: win.clampX(width)
         y: win.above ? pet.y - height - 12 : pet.y + pet.height + 12
         add: Transition { NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 180 } NumberAnimation { properties: "scale"; from: 0.96; to: 1; duration: 180; easing.type: Easing.OutQuad } }
@@ -610,21 +617,22 @@ Item {
             required property int index
             readonly property bool crit: Number(modelData.urgency) === 2
             width: stack.width
-            height: cardCol.implicitHeight + 16
-            radius: 6
+            height: Math.max(38, cardCol.implicitHeight + 20)
+            radius: height / 2
             color: Color.tooltip.background
             border.color: crit ? Color.urgent : Color.tooltip.border
             border.width: 1
             Column {
               id: cardCol
-              x: 12; y: 8; width: parent.width - 40; spacing: 1
+              x: win.padL; y: (card.height - implicitHeight) / 2
+              width: win.bubbleW - win.padL - win.padR; spacing: 1
               Row {
                 spacing: 6; width: parent.width
                 Text { text: modelData.glyph || ""; color: card.crit ? Color.urgent : Color.accent; font.pixelSize: 12; font.family: Style.font.family; visible: text !== "" }
-                Text { text: modelData.summary || ""; color: Color.tooltip.text; font.pixelSize: 12; font.bold: true; font.family: Style.font.family; elide: Text.ElideRight; width: parent.width - (appTag.visible ? appTag.width + 6 : 0) - 20 }
+                Text { text: modelData.summary || ""; color: Color.tooltip.text; font.pixelSize: 12; font.bold: true; font.family: Style.font.family; elide: Text.ElideRight; width: parent.width - (appTag.visible ? appTag.width + 6 : 0) }
                 Text { id: appTag; text: modelData.app || ""; color: Color.muted; font.pixelSize: 10; font.family: Style.font.family; visible: text !== "" && text !== (modelData.summary || "") }
               }
-              Text { text: modelData.body || ""; color: Color.tooltip.text; opacity: 0.8; font.pixelSize: 11; font.family: Style.font.family; wrapMode: Text.Wrap; width: parent.width; maximumLineCount: 2; elide: Text.ElideRight; visible: text !== "" }
+              Text { text: modelData.body || ""; color: Color.tooltip.text; opacity: 0.8; font.pixelSize: 11; font.family: Style.font.family; wrapMode: Text.Wrap; width: parent.width; maximumLineCount: 3; elide: Text.ElideRight; visible: text !== "" }
             }
             MouseArea {
               anchors.fill: parent
@@ -636,8 +644,8 @@ Item {
             Rectangle {
               id: closeBtn
               width: 20; height: 20; radius: 10
-              anchors.right: parent.right; anchors.rightMargin: 6
-              anchors.top: parent.top; anchors.topMargin: 6
+              anchors.right: parent.right; anchors.rightMargin: 13
+              anchors.verticalCenter: parent.verticalCenter
               readonly property color tone: card.crit ? Color.urgent : Color.accent
               color: closeMouse.containsMouse ? tone : Qt.rgba(tone.r, tone.g, tone.b, 0.14)
               border.color: closeMouse.containsMouse ? tone : Qt.rgba(tone.r, tone.g, tone.b, 0.35)
