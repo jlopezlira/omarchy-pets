@@ -24,12 +24,23 @@ if ! curl -fsSL "$url" -o "$tmp"; then
   echo "omarchy-pets-fetch: could not download $url" >&2; rm -f "$tmp"; exit 1
 fi
 mv "$tmp" "$dest/spritesheet.webp"
+case $id in
+  codex)       name="Codex";       desc="The original Codex companion" ;;
+  dewey)       name="Dewey";       desc="A tidy duck for calm workspace days" ;;
+  fireball)    name="Fireball";    desc="Hot path energy for fast iteration" ;;
+  rocky)       name="Rocky";       desc="A steady rock when the diff gets large" ;;
+  seedy)       name="Seedy";       desc="Small green shoots for new ideas" ;;
+  stacky)      name="Stacky";      desc="A balanced stack for deep work" ;;
+  bsod)        name="BSOD";        desc="A tiny blue-screen gremlin" ;;
+  null-signal) name="Null Signal"; desc="Quiet signal from the void" ;;
+  *)           name="$(tr '[:lower:]' '[:upper:]' <<<"${id:0:1}")${id:1}"; desc="Built-in Codex pet." ;;
+esac
 if [ ! -f "$dest/pet.json" ]; then
   cat > "$dest/pet.json" <<JSON
 {
   "id": "$id",
-  "displayName": "$(tr '[:lower:]' '[:upper:]' <<<"${id:0:1}")${id:1}",
-  "description": "Built-in Codex pet.",
+  "displayName": "$name",
+  "description": "$desc",
   "spritesheetPath": "spritesheet.webp",
   "kind": "companion",
   "cell": { "width": 192, "height": 208 },

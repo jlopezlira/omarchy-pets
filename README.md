@@ -53,11 +53,14 @@ Above the cards, a thought bubble says what the pet is thinking:
 
 ### Switching pets
 
-Right-click the pet to open the picker. It lists every pet under
-`~/.config/omarchy/pets/` and validates each one against what the animations
-need (a spritesheet and the nine Codex Pets rows); anything incomplete is greyed
-out with the reason instead of breaking later. Add more with
-`omarchy-pets-fetch <id>`.
+Right-click the pet to open the picker. It lists **every pet you can have**:
+the installed ones (validated against what the animations need — a spritesheet
+and the nine Codex Pets rows; anything incomplete is greyed out with the reason)
+and Codex's built-in catalog — Codex, Dewey, Fireball, Rocky, Seedy, Stacky,
+BSOD, Null Signal. One click switches; a pet that is not downloaded yet is
+fetched first (about 600 KB from OpenAI's CDN) and then selected. Community
+pets go in with `omarchy-pets-fetch <id> <folder>`. `omarchy-shell pets picker`
+opens the same list from a keybinding.
 
 ### Where it lives
 
@@ -139,8 +142,10 @@ IPC (for keybindings or scripts):
 
 ```bash
 omarchy-shell pets status              # JSON: pet, state, thought, agents, notes, health, positions
-omarchy-shell pets listPets            # installed pets with validity and reason
-omarchy-shell pets setPet dewey        # switch pet
+omarchy-shell pets listPets            # catalog + installed pets with validity and reason
+omarchy-shell pets setPet dewey        # switch pet (must be installed)
+omarchy-shell pets installPet dewey    # download a built-in pet and switch to it
+omarchy-shell pets picker              # open / close the pet picker
 omarchy-shell pets think "hello"       # make it think something (scripts, hooks)
 omarchy-shell pets screensaverToggle   # try the screensaver mode right now
 omarchy-shell notifications toggleDnd # Do Not Disturb (Omarchy's own)

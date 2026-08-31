@@ -30,8 +30,10 @@ Item {
     id: settingsFile
     path: root.settingsPath
     blockLoading: true; watchChanges: true; printErrors: false
+    // A change on disk (ours or the user's editor) triggers a real re-read;
+    // parsing text() straight from onFileChanged returned the stale buffer.
+    onFileChanged: settingsFile.reload()
     onLoaded: root.reloadSettings()
-    onFileChanged: root.reloadSettings()
     onLoadFailed: root.settings = ({})
   }
   function reloadSettings() { try { settings = JSON.parse(settingsFile.text()) } catch (e) { settings = ({}) } }
@@ -50,8 +52,43 @@ Item {
   readonly property real saverDim: settings.screensaverDim !== undefined ? Number(settings.screensaverDim) : 0.55
 
   // ================================================================== pets
-  // Installed pets, validated by omarchy-pets-list (needs the nine rows + sheet).
+  // Installed pets, validated by omarchy-pets-list (needs the nine rows + sheet),
+  // merged with the catalog of Codex's built-in pets so the picker shows every
+  // pet you can have; a click on one that is not installed downloads it first.
+  readonly property var catalog: [
+    { id: "codex",       name: "Codex",       description: "The original Codex companion" },
+    { id: "dewey",       name: "Dewey",       description: "A tidy duck for calm workspace days" },
+    { id: "fireball",    name: "Fireball",    description: "Hot path energy for fast iteration" },
+    { id: "rocky",       name: "Rocky",       description: "A steady rock when the diff gets large" },
+    { id: "seedy",       name: "Seedy",       description: "Small green shoots for new ideas" },
+    { id: "stacky",      name: "Stacky",      description: "A balanced stack for deep work" },
+    { id: "bsod",        name: "BSOD",        description: "A tiny blue-screen gremlin" },
+    { id: "null-signal", name: "Null Signal", description: "Quiet signal from the void" }
+  ]
   property var pets: []
+  readonly property var allPets: {
+    var list = pets.map(function(x) { x.installed = true; return x })
+    var have = {}; list.forEach(function(x) { have[x.id] = true })
+    catalog.forEach(function(c) { if (!have[c.id]) list.push({ id: c.id, name: c.name, description: c.description, installed: false, valid: false, reason: "not downloaded yet — click to fetch" }) })
+    list.sort(function(a, b) { return a.name.localeCompare(b.name) })
+    return list
+  }
+  property string installing: ""
+  Process {
+    id: installProc
+    stdout: StdioCollector { onStreamFinished: {} }
+    onExited: function(code) {
+      var id = root.installing; root.installing = ""
+      if (code === 0) { root.pendingSelect = id; petsScan.restart(); root.think("Got " + id + "!", root.thoughtMs) }
+      else root.think("Couldn't download " + id + ".", root.thoughtMs)
+    }
+  }
+  property string pendingSelect: ""
+  function installPet(id) {
+    if (installing !== "") return
+    installing = id; think("Fetching " + id + "…", 0)
+    installProc.command = [root.home + "/.local/bin/omarchy-pets-fetch", id]; installProc.running = true
+  }
   readonly property var pet: {
     for (var i = 0; i < pets.length; i++) if (pets[i].id === petId && pets[i].valid) return pets[i]
     for (var j = 0; j < pets.length; j++) if (pets[j].valid) return pets[j]
@@ -79,6 +116,7 @@ Item {
     String(text).split("\n").forEach(function(l) { l = l.trim(); if (!l) return; try { list.push(JSON.parse(l)) } catch (e) {} })
     list.sort(function(a, b) { return a.name.localeCompare(b.name) })
     pets = list
+    if (pendingSelect !== "") { var id = pendingSelect; pendingSelect = ""; for (var i = 0; i < list.length; i++) if (list[i].id === id && list[i].valid) selectPet(id) }
   }
   function selectPet(id) { saveSettings({ pet: id }); think("Now I'm " + id + ".", thoughtMs) }
 
@@ -296,6 +334,7 @@ Item {
   }
 
   // ============================================================ per screen
+  property bool pickerOpen: false
   Variants {
     model: Quickshell.screens
 
@@ -467,7 +506,8 @@ Item {
       // sheet or rows) are listed greyed out with the reason.
       Rectangle {
         id: picker
-        property bool open: false
+        property bool open: root.pickerOpen
+        onOpenChanged: root.pickerOpen = open
         visible: opacity > 0
         opacity: open ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -479,19 +519,20 @@ Item {
         height: pickCol.implicitHeight + 24
         x: Math.max(6, Math.min(win.width - width - 6, pet.x + pet.width + 12 + width <= win.width ? pet.x + pet.width + 12 : pet.x - width - 12))
         y: Math.max(6, Math.min(win.height - height - 6, pet.y + pet.height / 2 - height / 2))
-        Timer { interval: 12000; running: picker.open; onTriggered: picker.open = false }
+        Timer { interval: 20000; running: picker.open && root.installing === ""; onTriggered: picker.open = false }
         Column {
           id: pickCol
           x: 12; y: 12; width: parent.width - 24; spacing: 4
           Text { text: "Pets"; color: Color.muted; font.pixelSize: 11; font.family: Style.font.family; font.letterSpacing: 1 }
           Repeater {
-            model: root.pets
+            model: root.allPets
             delegate: Rectangle {
               required property var modelData
               width: pickCol.width; height: 44; radius: 8
               readonly property bool current: root.pet && modelData.id === root.pet.id
-              color: rowMouse.containsMouse && modelData.valid ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18) : "transparent"
-              opacity: modelData.valid ? 1 : 0.45
+              readonly property bool clickable: modelData.valid || !modelData.installed
+              color: rowMouse.containsMouse && clickable ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.18) : "transparent"
+              opacity: clickable ? 1 : 0.45
               Row {
                 anchors.verticalCenter: parent.verticalCenter; x: 8; spacing: 10
                 Image {
@@ -499,17 +540,19 @@ Item {
                   source: picker.open && modelData.valid ? "file://" + modelData.sheet : ""
                   sourceClipRect: Qt.rect(0, 0, modelData.cellW, modelData.cellH); fillMode: Image.Stretch; smooth: false; asynchronous: true
                 }
+                Rectangle { width: 30; height: 32; radius: 6; visible: !modelData.valid; color: "transparent"; border.color: Color.muted; border.width: 1
+                  Text { anchors.centerIn: parent; text: root.installing === modelData.id ? "…" : (modelData.installed ? "!" : "↓"); color: Color.muted; font.pixelSize: 14 } }
                 Column {
                   anchors.verticalCenter: parent.verticalCenter
                   Text { text: modelData.name + (current ? "  ✓" : ""); color: Color.tooltip.text; font.pixelSize: 13; font.bold: current; font.family: Style.font.family }
-                  Text { text: modelData.valid ? modelData.description : modelData.reason; color: Color.muted; font.pixelSize: 11; font.family: Style.font.family; width: pickCol.width - 70; elide: Text.ElideRight }
+                  Text { text: root.installing === modelData.id ? "downloading…" : (modelData.valid ? modelData.description : modelData.reason); color: Color.muted; font.pixelSize: 11; font.family: Style.font.family; width: pickCol.width - 70; elide: Text.ElideRight }
                 }
               }
-              MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; enabled: modelData.valid; cursorShape: Qt.PointingHandCursor
-                onClicked: { root.selectPet(modelData.id); picker.open = false } }
+              MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; enabled: clickable; cursorShape: Qt.PointingHandCursor
+                onClicked: { if (modelData.valid) { root.selectPet(modelData.id); picker.open = false } else root.installPet(modelData.id) } }
             }
           }
-          Text { text: "More: omarchy-pets-fetch <id>  (codex dewey fireball seedy stacky bsod null-signal)"; color: Color.muted; font.pixelSize: 10; font.family: Style.font.family; width: pickCol.width; wrapMode: Text.Wrap }
+          Text { text: "↓ not downloaded yet · click to fetch and switch · community pets: omarchy-pets-fetch <id> <folder>"; color: Color.muted; font.pixelSize: 10; font.family: Style.font.family; width: pickCol.width; wrapMode: Text.Wrap }
         }
       }
 
@@ -576,8 +619,10 @@ Item {
   IpcHandler {
     target: "pets"
     function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
-    function listPets(): string { return JSON.stringify(root.pets) }
+    function listPets(): string { return JSON.stringify(root.allPets) }
     function setPet(id: string): string { root.selectPet(id); return id }
+    function installPet(id: string): string { root.installPet(id); return id }
+    function picker(): string { root.pickerOpen = !root.pickerOpen; if (root.pickerOpen) petsScan.restart(); return root.pickerOpen ? "open" : "closed" }
     function think(text: string): string { root.think(text, root.thoughtMs); return "ok" }
     function screensaverOn(): string { root.saverOn = true; return "on" }
     function screensaverOff(): string { root.saverOn = false; return "off" }
