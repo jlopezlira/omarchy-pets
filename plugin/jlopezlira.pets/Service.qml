@@ -270,20 +270,11 @@ Item {
   // stalled after a few lines; discrete runs are reliable and just as cheap.)
   property real cursorX: -1
   property real cursorY: -1
-  // True for a short while after the cursor moved: the pet glances at it in
-  // (almost) any state, then goes back to whatever it was doing.
-  property bool cursorActive: false
-  Timer { id: cursorSettle; interval: 2500; onTriggered: root.cursorActive = false }
+  property var debugFacing: ({})   // filled by the first screen's pet, for `pets status`
   Process {
     id: cursorProc
     command: ["hyprctl", "cursorpos"]
-    stdout: StdioCollector { onStreamFinished: {
-      var m = /(-?\d+),\s*(-?\d+)/.exec(this.text)
-      if (!m) return
-      var nx = Number(m[1]), ny = Number(m[2])
-      if (nx !== root.cursorX || ny !== root.cursorY) { root.cursorActive = true; cursorSettle.restart() }
-      root.cursorX = nx; root.cursorY = ny
-    } }
+    stdout: StdioCollector { onStreamFinished: { var m = /(-?\d+),\s*(-?\d+)/.exec(this.text); if (m) { root.cursorX = Number(m[1]); root.cursorY = Number(m[2]) } } }
   }
   Timer { interval: 250; repeat: true; running: !root.asleep && !root.fullscreenFocused && !root.saverOn; onTriggered: if (!cursorProc.running) cursorProc.running = true }
 
@@ -337,12 +328,12 @@ Item {
         readonly property bool dragging: mouse.pressed && mouse.drag.active
         readonly property real centerGX: win.screenX + x + width / 2
         readonly property int facing: root.cursorX < 0 ? 0 : root.cursorX < centerGX - width ? -1 : root.cursorX > centerGX + width ? 1 : 0
-        // Cursor glance wins over the state animation while the cursor moves
-        // (except when it needs you, is weak, or asleep).
-        readonly property bool glancing: root.cursorActive && facing !== 0
-                                      && root.petState !== "needs-you" && root.petState !== "weak" && root.petState !== "asleep"
-        readonly property string anim: glancing ? (facing > 0 ? "running-right" : "running-left")
-                                     : root.petState === "needs-you" ? (root.waving ? "jumping" : "waiting")
+        // Facing the cursor is a plain horizontal flip of whatever the pet is
+        // doing (the sheet's poses face right). The running rows already have
+        // a direction, so they are picked instead of flipped while resting.
+        readonly property bool mirrored: facing < 0 && anim !== "running-left" && anim !== "running-right" && root.petState !== "asleep"
+        onFacingChanged: Qt.callLater(function() { root.debugFacing = { screen: win.screenName, petCenterGX: pet.centerGX, facing: pet.facing, mirrored: pet.mirrored, anim: pet.anim } })
+        readonly property string anim: root.petState === "needs-you" ? (root.waving ? "jumping" : "waiting")
                                      : root.petState === "weak" || root.petState === "tired" || root.petState === "hungry" ? "failed"
                                      : root.petState === "working" ? "running"
                                      : root.petState === "ready" ? "review"
@@ -353,13 +344,14 @@ Item {
         readonly property int shownFrame: root.petState === "asleep" ? 1
                                         : root.petState === "weak" ? root.frames("failed") - 1
                                         : root.petState === "hungry" ? (frame % 16 < 8 ? 0 : 1)
-                                        : (anim === "running-right" || anim === "running-left") && (glancing || root.petState === "resting") ? 0
+                                        : (anim === "running-right" || anim === "running-left") && root.petState === "resting" ? 0
                                         : frame % root.frames(anim)
         Image {
           anchors.fill: parent
           source: root.sheet
           sourceClipRect: Qt.rect(pet.shownFrame * root.cellW, root.row(pet.anim) * root.cellH, root.cellW, root.cellH)
           fillMode: Image.Stretch; smooth: false; mipmap: false; cache: true; asynchronous: true
+          transform: Scale { origin.x: pet.width / 2; xScale: pet.mirrored ? -1 : 1 }
         }
         Text {
           visible: root.petState === "asleep"
@@ -583,7 +575,7 @@ Item {
 
   IpcHandler {
     target: "pets"
-    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, cursorActive: root.cursorActive, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
+    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
     function listPets(): string { return JSON.stringify(root.pets) }
     function setPet(id: string): string { root.selectPet(id); return id }
     function think(text: string): string { root.think(text, root.thoughtMs); return "ok" }
