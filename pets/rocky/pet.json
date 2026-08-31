@@ -1,0 +1,11 @@
+{
+  "id": "rocky",
+  "displayName": "Rocky",
+  "description": "A steady rock when the diff gets large.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "rock",
+  "cell": { "width": 192, "height": 208 },
+  "columns": 8,
+  "rows": ["idle", "running-right", "running-left", "waving", "jumping", "failed", "waiting", "running", "review"],
+  "frames": { "idle": 6, "running-right": 8, "running-left": 8, "waving": 4, "jumping": 5, "failed": 8, "waiting": 6, "running": 6, "review": 6 }
+}

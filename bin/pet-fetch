@@ -1,0 +1,42 @@
+#!/bin/bash
+# pet-fetch — install a pet in Codex Pets format for Omarchy Pet.
+#
+#   pet-fetch rocky                 download one of Codex's built-in pets from OpenAI's CDN
+#   pet-fetch <id> <dir>            install a community pet folder (pet.json + spritesheet.webp)
+#
+# Built-in ids: codex dewey fireball rocky seedy stacky bsod null-signal
+# Pets are installed under ~/.config/omarchy/pets/<id>/. The spritesheet is
+# OpenAI's asset and is fetched for personal use only; it is never redistributed
+# with this project.
+set -euo pipefail
+id=${1:-rocky}; src=${2:-}
+dest="$HOME/.config/omarchy/pets/$id"
+mkdir -p "$dest"
+if [ -n "$src" ]; then
+  cp "$src/pet.json" "$dest/pet.json"
+  cp "$src/spritesheet.webp" "$dest/spritesheet.webp"
+  echo "Installed $id from $src -> $dest"
+  exit 0
+fi
+url="https://persistent.oaistatic.com/codex/pets/v1/${id}-spritesheet-v4.webp"
+tmp=$(mktemp)
+if ! curl -fsSL "$url" -o "$tmp"; then
+  echo "pet-fetch: could not download $url" >&2; rm -f "$tmp"; exit 1
+fi
+mv "$tmp" "$dest/spritesheet.webp"
+if [ ! -f "$dest/pet.json" ]; then
+  cat > "$dest/pet.json" <<JSON
+{
+  "id": "$id",
+  "displayName": "$(tr '[:lower:]' '[:upper:]' <<<"${id:0:1}")${id:1}",
+  "description": "Built-in Codex pet.",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "companion",
+  "cell": { "width": 192, "height": 208 },
+  "columns": 8,
+  "rows": ["idle", "running-right", "running-left", "waving", "jumping", "failed", "waiting", "running", "review"],
+  "frames": { "idle": 6, "running-right": 8, "running-left": 8, "waving": 4, "jumping": 5, "failed": 8, "waiting": 6, "running": 6, "review": 6 }
+}
+JSON
+fi
+echo "Installed $id -> $dest ($(stat -c %s "$dest/spritesheet.webp") bytes)"

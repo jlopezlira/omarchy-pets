@@ -1,0 +1,28 @@
+#!/bin/bash
+# Records an AI agent's state for Omarchy Pet. Called by Claude Code / Codex hooks:
+#   pet-agent-state <agent> <state>      state: running | waiting | done | idle
+# Reads the hook's JSON payload from stdin (session_id, notification_type, message)
+# when present. One file per agent session; "idle" removes it. Never blocks the
+# agent: every failure exits 0.
+agent=${1:-unknown}; state=${2:-idle}
+printf "%s %s %s\n" "$(date +%T)" "$agent" "$state" >> "$HOME/.local/state/omarchy/pet/hooks.log" 2>/dev/null
+dir="$HOME/.local/state/omarchy/pet/agents"; mkdir -p "$dir" 2>/dev/null
+payload=""; [ -t 0 ] || payload=$(timeout 2 cat 2>/dev/null)
+sid=$(printf '%s' "$payload" | jq -r '.session_id // .thread_id // empty' 2>/dev/null)
+[ -z "$sid" ] && sid="${PPID}"
+ntype=$(printf '%s' "$payload" | jq -r '.notification_type // empty' 2>/dev/null)
+msg=$(printf '%s' "$payload" | jq -r '.message // empty' 2>/dev/null | head -c 200)
+cwd=$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)
+# Notification hooks: only permission/idle prompts mean "waiting for you".
+if [ "$state" = "notify" ]; then
+  case "$ntype" in
+    permission_prompt|permission*|idle_prompt|idle*|elicitation*) state=waiting ;;
+    *) exit 0 ;;
+  esac
+fi
+f="$dir/${agent}-${sid//[^A-Za-z0-9_-]/_}.json"
+if [ "$state" = "idle" ]; then rm -f "$f"; exit 0; fi
+tmp=$(mktemp "$dir/.tmp.XXXXXX") || exit 0
+jq -cn --arg agent "$agent" --arg state "$state" --arg sid "$sid" --arg msg "$msg" --arg cwd "$cwd" \
+  '{agent:$agent,state:$state,session:$sid,message:$msg,cwd:$cwd,updatedAt:(now|floor)}' > "$tmp" 2>/dev/null && mv -f "$tmp" "$f"
+exit 0

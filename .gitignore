@@ -1,0 +1,4 @@
+# Pet spritesheets are OpenAI assets fetched at install time; never commit them.
+*.webp
+*.png
+__pycache__/

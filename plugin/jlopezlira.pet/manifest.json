@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "jlopezlira.pet",
+  "name": "Omarchy Pet",
+  "version": "1.0.0",
+  "author": "jlopezlira",
+  "license": "MIT",
+  "description": "Rocky, a Codex-Pets-format desktop companion for Omarchy: delivers notifications, mirrors AI agent state and machine health, doubles as the screensaver.",
+  "kinds": ["service"],
+  "entryPoints": { "service": "Service.qml" }
+}

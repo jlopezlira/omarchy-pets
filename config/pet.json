@@ -1,0 +1,12 @@
+{
+  "sounds": true,
+  "volume": 0.5,
+  "scale": 0.5,
+  "doneTimeoutMin": 10,
+  "sound": {
+    "notification": "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
+    "critical": "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",
+    "attention": "/usr/share/sounds/freedesktop/stereo/window-attention.oga",
+    "done": "/usr/share/sounds/freedesktop/stereo/complete.oga"
+  }
+}

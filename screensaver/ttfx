@@ -1,0 +1,18 @@
+#!/bin/bash
+# /usr/local/bin/ttfx — shadows /usr/bin/ttfx for the Omarchy screensaver.
+# omarchy-screensaver calls `ttfx ... --random-effect` (matrix, fireworks...).
+# That call now switches the Omarchy shell into "pet screensaver" mode: Rocky
+# strolls and naps on a black overlay. This wrapper stays alive as the process
+# named "ttfx" (omarchy-screensaver polls and later kills exactly that name);
+# when it is killed, the overlay is turned off. If the shell is not answering,
+# the real ttfx runs as before. Any other ttfx use passes through untouched.
+for a in "$@"; do
+  if [[ $a == --random-effect || $a == -R ]]; then
+    if [[ $(omarchy-shell pet screensaverOn 2>/dev/null) == on ]]; then
+      trap 'omarchy-shell pet screensaverOff >/dev/null 2>&1; exit 0' TERM INT HUP EXIT
+      while :; do sleep 3600 & wait $!; done
+    fi
+    break
+  fi
+done
+exec /usr/bin/ttfx "$@"
