@@ -1,12 +1,12 @@
 #!/bin/bash
 # Records an AI agent's state for Omarchy Pet. Called by Claude Code / Codex hooks:
-#   pet-agent-state <agent> <state>      state: running | waiting | done | idle
+#   omarchy-pets-agent-state <agent> <state>      state: running | waiting | done | idle
 # Reads the hook's JSON payload from stdin (session_id, notification_type, message)
 # when present. One file per agent session; "idle" removes it. Never blocks the
 # agent: every failure exits 0.
 agent=${1:-unknown}; state=${2:-idle}
-printf "%s %s %s\n" "$(date +%T)" "$agent" "$state" >> "$HOME/.local/state/omarchy/pet/hooks.log" 2>/dev/null
-dir="$HOME/.local/state/omarchy/pet/agents"; mkdir -p "$dir" 2>/dev/null
+printf "%s %s %s\n" "$(date +%T)" "$agent" "$state" >> "$HOME/.local/state/omarchy/pets/hooks.log" 2>/dev/null
+dir="$HOME/.local/state/omarchy/pets/agents"; mkdir -p "$dir" 2>/dev/null
 payload=""; [ -t 0 ] || payload=$(timeout 2 cat 2>/dev/null)
 sid=$(printf '%s' "$payload" | jq -r '.session_id // .thread_id // empty' 2>/dev/null)
 [ -z "$sid" ] && sid="${PPID}"

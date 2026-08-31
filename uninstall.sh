@@ -9,19 +9,23 @@ purge=0; [ "${1:-}" = "--purge" ] && purge=1
 echo "hooks"
 python3 "$here"/hooks/install-hooks.py --remove
 echo "plugin"
-omarchy plugin disable jlopezlira.pet >/dev/null 2>&1 || true
-rm -rf ~/.config/omarchy/plugins/jlopezlira.pet
+omarchy plugin disable jlopezlira.pets >/dev/null 2>&1 || true
+rm -rf ~/.config/omarchy/plugins/jlopezlira.pets
 echo "notifications: back to Omarchy's toasts"
 omarchy plugin enable omarchy.notifications >/dev/null 2>&1 || true
 rm -rf ~/.config/omarchy/plugins/jlopezlira.notifications
 echo "scripts"
-rm -f ~/.local/bin/pet-health ~/.local/bin/pet-agent-state ~/.local/bin/pet-fetch
+rm -f ~/.local/bin/omarchy-pets-health ~/.local/bin/omarchy-pets-agent-state ~/.local/bin/omarchy-pets-fetch ~/.local/bin/omarchy-pets-activity ~/.local/bin/omarchy-pets-list
+echo "hyprland rules"
+rm -f ~/.config/hypr/omarchy-pets.lua
+sed -i '/-- Omarchy Pets (screensaver blur/d; /require("hypr.omarchy-pets")/d' ~/.config/hypr/hyprland.lua 2>/dev/null || true
+hyprctl reload >/dev/null 2>&1 || true
 if [ -f /usr/local/bin/ttfx ] && grep -q 'pet screensaverOn' /usr/local/bin/ttfx; then
   echo "screensaver hook (sudo)"
   sudo rm -f /usr/local/bin/ttfx
 fi
 if [ $purge = 1 ]; then
-  rm -rf ~/.config/omarchy/pet.json ~/.config/omarchy/pets ~/.local/state/omarchy/pet
+  rm -rf ~/.config/omarchy/pets.json ~/.config/omarchy/pets ~/.local/state/omarchy/pet
 fi
 omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
 omarchy restart shell >/dev/null 2>&1 || true

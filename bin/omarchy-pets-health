@@ -1,0 +1,39 @@
+#!/bin/bash
+# Machine health snapshot for Omarchy Pets, one JSON line, root-free, ~5 ms.
+# CPU busy % is instantaneous (delta of /proc/stat since the previous call, kept
+# in a tiny state file), so a burst to 100 % shows up on the next sample instead
+# of waiting for the 1-minute load average. Also names the top CPU and top
+# memory process so the pet can say who is eating what.
+set -u
+state="${XDG_RUNTIME_DIR:-/tmp}/omarchy-pets-health.prev"
+read -r _ u n s idle io irq sirq st _ < /proc/stat
+busy=$((u + n + s + irq + sirq + st)); total=$((busy + idle + io))
+cpu=0
+if [ -r "$state" ]; then
+  read -r pb pt < "$state"
+  dt=$((total - pt)); [ "$dt" -gt 0 ] && cpu=$(( (busy - pb) * 100 / dt ))
+fi
+printf '%s %s\n' "$busy" "$total" > "$state"
+read -r l1 _ _ _ _ < /proc/loadavg
+cores=$(nproc)
+temp=0
+for z in /sys/class/thermal/thermal_zone*; do
+  [ "$(cat "$z/type" 2>/dev/null)" = "x86_pkg_temp" ] && temp=$(( $(cat "$z/temp") / 1000 )) && break
+done
+throttle=0
+for f in /sys/devices/system/cpu/cpu*/thermal_throttle/core_throttle_count; do
+  [ -r "$f" ] && throttle=$(( throttle + $(cat "$f") ))
+done
+bat=-1; discharging=false
+if [ -r /sys/class/power_supply/BAT0/capacity ]; then
+  bat=$(cat /sys/class/power_supply/BAT0/capacity)
+  [ "$(cat /sys/class/power_supply/BAT0/status)" = "Discharging" ] && discharging=true
+fi
+read -r memtotal memavail < <(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{print t, a}' /proc/meminfo)
+memused=$(( (memtotal - memavail) * 100 / memtotal ))
+# Top processes (skip ourselves and ps). rss in KB.
+read -r tc_pct tc_name < <(ps -eo pcpu=,comm= --sort=-pcpu | grep -vE "^ *[0-9.]+ +(ps|omarchy-pets-he)" | head -1); tc_name=${tc_name//[^A-Za-z0-9._-]/}
+read -r tm_rss tm_name < <(ps -eo rss=,comm= --sort=-rss | head -1); tm_name=${tm_name//[^A-Za-z0-9._-]/}
+printf '{"cpuPct":%d,"loadPerCore":%.2f,"tempC":%d,"throttle":%d,"batteryPct":%d,"discharging":%s,"memUsedPct":%d,"memAvailMB":%d,"topCpu":{"name":"%s","pct":%.0f},"topMem":{"name":"%s","mb":%d},"ts":%d}\n' \
+  "$cpu" "$(awk -v l="$l1" -v c="$cores" 'BEGIN{print l/c}')" "$temp" "$throttle" "$bat" "$discharging" "$memused" "$((memavail / 1024))" \
+  "${tc_name:-?}" "${tc_pct:-0}" "${tm_name:-?}" "$(( ${tm_rss:-0} / 1024 ))" "$(date +%s)"

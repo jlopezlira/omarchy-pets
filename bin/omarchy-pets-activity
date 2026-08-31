@@ -1,0 +1,10 @@
+#!/bin/bash
+# Hook-free agent activity detector for Omarchy Pets. Prints the id of every
+# agent whose session transcript was written in the last N seconds (default 8),
+# one per line. Costs ~10 ms. Used as a fallback so sessions that were started
+# before the hooks were installed still register as "working".
+n=${1:-8}
+[ -d "$HOME/.claude/projects" ] && find "$HOME/.claude/projects" -name '*.jsonl' -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo claude
+[ -d "$HOME/.codex/sessions" ]  && find "$HOME/.codex/sessions"  -name '*.jsonl' -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo codex
+[ -d "$HOME/.grok/sessions" ]   && find "$HOME/.grok/sessions"   -name '*.jsonl' -newermt "-$n seconds" -print -quit 2>/dev/null | grep -q . && echo grok
+exit 0

@@ -1,0 +1,20 @@
+#!/bin/bash
+# Lists installed pets (~/.config/omarchy/pets/*/pet.json) as JSON lines and
+# validates each against what Omarchy Pets needs: a spritesheet file and the
+# nine Codex Pets rows (idle, running-right, running-left, waving, jumping,
+# failed, waiting, running, review). Invalid pets are listed with a reason so the
+# picker can grey them out instead of breaking an animation later.
+shopt -s nullglob
+for f in "$HOME"/.config/omarchy/pets/*/pet.json; do
+  d=$(dirname "$f")
+  jq -c --arg dir "$d" --arg hasSheet "$([ -f "$d/$(jq -r '.spritesheetPath // "spritesheet.webp"' "$f")" ] && echo 1 || echo 0)" '
+    def need: ["idle","running-right","running-left","waving","jumping","failed","waiting","running","review"];
+    (.rows // need) as $rows
+    | (need - $rows) as $missing
+    | {id: (.id // ($dir | split("/") | last)), name: (.displayName // .id), description: (.description // ""),
+       dir: $dir, sheet: ($dir + "/" + (.spritesheetPath // "spritesheet.webp")),
+       cellW: (.cell.width // 192), cellH: (.cell.height // 208), columns: (.columns // 8),
+       rows: $rows, frames: (.frames // {}),
+       valid: (($hasSheet == "1") and ($missing | length == 0)),
+       reason: (if $hasSheet != "1" then "spritesheet missing" elif ($missing | length) > 0 then ("rows missing: " + ($missing | join(", "))) else "" end)}' "$f" 2>/dev/null
+done

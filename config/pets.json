@@ -1,8 +1,11 @@
 {
+  "pet": "rocky",
   "sounds": true,
   "volume": 0.5,
   "scale": 0.5,
   "doneTimeoutMin": 10,
+  "thoughtSeconds": 8,
+  "screensaverDim": 0.55,
   "sound": {
     "notification": "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga",
     "critical": "/usr/share/sounds/freedesktop/stereo/dialog-warning.oga",

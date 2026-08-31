@@ -13,7 +13,7 @@ written to ~/.local/state/config-backups/ before any change.
 import json, pathlib, shutil, sys, time
 
 HOME = pathlib.Path.home()
-STATE = HOME / ".local/bin/pet-agent-state"   # absolute: hook shells may not have ~/.local/bin in PATH
+STATE = HOME / ".local/bin/omarchy-pets-agent-state"   # absolute: hook shells may not have ~/.local/bin in PATH
 TARGETS = {
     # file: (events -> (state argument, matcher or None))
     HOME / ".claude/settings.json": {
