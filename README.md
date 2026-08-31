@@ -62,6 +62,13 @@ fetched first (about 600 KB from OpenAI's CDN) and then selected. Community
 pets go in with `omarchy-pets-fetch <id> <folder>`. `omarchy-shell pets picker`
 opens the same list from a keybinding.
 
+### Naming your pet
+
+The picker's first row is the current pet's name: type a nickname and press
+Enter (leave it empty to go back to the original). Each pet keeps its own name
+(`names` in the settings), and the pet uses it when it talks. Scripts:
+`omarchy-shell pets rename "Piedrita"`.
+
 ### Where it lives
 
 The pet **does not wander** on the desktop: drag it to the corner that bothers
@@ -117,6 +124,7 @@ at install time.
 ```json
 {
   "pet": "rocky",
+  "names": { "rocky": "Piedrita" },
   "sounds": true,
   "volume": 0.5,
   "scale": 0.5,
@@ -133,6 +141,7 @@ at install time.
 ```
 
 - `pet` — id of the pet to show (also set by the right-click picker)
+- `names` — your nickname per pet id (also set from the picker or `pets rename`)
 - `scale` — sprite scale on the desktop (`0.5` = 96×104 px, crisp at display scale 1)
 - `doneTimeoutMin` — how long "Ready" stays before fading back to resting
 - `thoughtSeconds` — how long a timed thought stays on screen
@@ -145,6 +154,7 @@ omarchy-shell pets status              # JSON: pet, state, thought, agents, note
 omarchy-shell pets listPets            # catalog + installed pets with validity and reason
 omarchy-shell pets setPet dewey        # switch pet (must be installed)
 omarchy-shell pets installPet dewey    # download a built-in pet and switch to it
+omarchy-shell pets rename "Piedrita"   # nickname the current pet ("" = original name)
 omarchy-shell pets picker              # open / close the pet picker
 omarchy-shell pets think "hello"       # make it think something (scripts, hooks)
 omarchy-shell pets screensaverToggle   # try the screensaver mode right now

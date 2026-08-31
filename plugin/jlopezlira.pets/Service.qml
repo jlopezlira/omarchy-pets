@@ -44,6 +44,18 @@ Item {
     settingsFile.setText(JSON.stringify(next, null, 2) + "\n")
   }
   readonly property string petId: settings.pet || "rocky"
+  // Your own name for each pet: settings.names = { rocky: "Piedrita", ... }
+  function nickname(id) { var n = settings.names || {}; return n[id] ? String(n[id]) : "" }
+  function displayName(p) { return p ? (nickname(p.id) || p.name) : "" }
+  readonly property string petName: displayName(pet)
+  function renamePet(name) {
+    if (!pet) return
+    var names = JSON.parse(JSON.stringify(settings.names || {}))
+    name = String(name || "").trim()
+    if (name === "" || name === pet.name) delete names[pet.id]; else names[pet.id] = name
+    saveSettings({ names: names })
+    think(name ? "Call me " + name + "." : "Back to " + pet.name + ".", thoughtMs)
+  }
   readonly property bool soundsOn: settings.sounds !== false
   readonly property real volume: settings.volume !== undefined ? Number(settings.volume) : 0.5
   readonly property real drawScale: settings.scale !== undefined ? Number(settings.scale) : 0.5
@@ -118,7 +130,7 @@ Item {
     pets = list
     if (pendingSelect !== "") { var id = pendingSelect; pendingSelect = ""; for (var i = 0; i < list.length; i++) if (list[i].id === id && list[i].valid) selectPet(id) }
   }
-  function selectPet(id) { saveSettings({ pet: id }); think("Now I'm " + id + ".", thoughtMs) }
+  function selectPet(id) { saveSettings({ pet: id }); think("Now I'm " + (nickname(id) || id) + ".", thoughtMs) }
 
   // ================================================================ health
   property var health: ({})
@@ -345,7 +357,7 @@ Item {
       visible: !root.fullscreenFocused && !root.saverOn && root.pet !== null
       WlrLayershell.namespace: "omarchy-pets"
       WlrLayershell.layer: WlrLayer.Top
-      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+      WlrLayershell.keyboardFocus: picker.open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
       exclusionMode: ExclusionMode.Ignore
       color: "transparent"
       anchors { top: true; bottom: true; left: true; right: true }
@@ -524,6 +536,28 @@ Item {
           id: pickCol
           x: 12; y: 12; width: parent.width - 24; spacing: 4
           Text { text: "Pets"; color: Color.muted; font.pixelSize: 11; font.family: Style.font.family; font.letterSpacing: 1 }
+          // Name field for the current pet: type a nickname, Enter to save, empty = original name.
+          Rectangle {
+            width: pickCol.width; height: 30; radius: 6
+            color: Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, nameInput.activeFocus ? 0.18 : 0.08)
+            border.color: nameInput.activeFocus ? Color.accent : Color.tooltip.border; border.width: 1
+            Row {
+              anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
+              Text { anchors.verticalCenter: parent.verticalCenter; text: "Name"; color: Color.muted; font.pixelSize: 11; font.family: Style.font.family }
+              TextInput {
+                id: nameInput
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - 60
+                color: Color.tooltip.text; font.pixelSize: 13; font.family: Style.font.family
+                selectByMouse: true; clip: true
+                text: root.petName
+                onAccepted: { root.renamePet(text); picker.open = false }
+                Keys.onEscapePressed: { text = root.petName; focus = false }
+                Text { anchors.fill: parent; text: "type a name, Enter to save"; color: Color.muted; font.pixelSize: 12; font.family: Style.font.family; visible: nameInput.text === "" && !nameInput.activeFocus }
+              }
+            }
+            Connections { target: picker; function onOpenChanged() { if (picker.open) nameInput.text = root.petName } }
+          }
           Repeater {
             model: root.allPets
             delegate: Rectangle {
@@ -544,7 +578,7 @@ Item {
                   Text { anchors.centerIn: parent; text: root.installing === modelData.id ? "…" : (modelData.installed ? "!" : "↓"); color: Color.muted; font.pixelSize: 14 } }
                 Column {
                   anchors.verticalCenter: parent.verticalCenter
-                  Text { text: modelData.name + (current ? "  ✓" : ""); color: Color.tooltip.text; font.pixelSize: 13; font.bold: current; font.family: Style.font.family }
+                  Text { text: (root.nickname(modelData.id) ? root.nickname(modelData.id) + "  · " + modelData.name : modelData.name) + (current ? "  ✓" : ""); color: Color.tooltip.text; font.pixelSize: 13; font.bold: current; font.family: Style.font.family }
                   Text { text: root.installing === modelData.id ? "downloading…" : (modelData.valid ? modelData.description : modelData.reason); color: Color.muted; font.pixelSize: 11; font.family: Style.font.family; width: pickCol.width - 70; elide: Text.ElideRight }
                 }
               }
@@ -618,10 +652,11 @@ Item {
 
   IpcHandler {
     target: "pets"
-    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
+    function status(): string { return JSON.stringify({ pet: root.pet ? root.pet.id : null, name: root.petName, state: root.petState, thought: root.thought, asleep: root.asleep, tired: root.tired, weak: root.weak, cursorX: root.cursorX, facing: root.debugFacing, notes: root.notes.length, agents: root.agents, active: root.activeAgents, hungry: root.hungryAgents, sounds: root.soundsOn, lastSound: root.lastSound, positions: root.positions, health: root.health }) }
     function listPets(): string { return JSON.stringify(root.allPets) }
     function setPet(id: string): string { root.selectPet(id); return id }
     function installPet(id: string): string { root.installPet(id); return id }
+    function rename(name: string): string { root.renamePet(name); return root.petName }
     function picker(): string { root.pickerOpen = !root.pickerOpen; if (root.pickerOpen) petsScan.restart(); return root.pickerOpen ? "open" : "closed" }
     function think(text: string): string { root.think(text, root.thoughtMs); return "ok" }
     function screensaverOn(): string { root.saverOn = true; return "on" }
